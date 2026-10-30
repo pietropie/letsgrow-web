@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/*
+ * Tokens do app mobile (letsgrow-mobile/constants/theme.ts, cópia em src/shared/constants/theme.ts).
+ * Mantenha os mesmos nomes: bg-primary aqui é colors.primary lá.
+ */
+@theme {
+  --color-bg: #E2E1E0;
+  --color-surface: #F8F5F2;
+  --color-surface-high: #F7F6F3;
+  --color-border: #B6BDB6;
+  --color-primary: #485D50;
+  --color-primary-dark: #2C4330;
+  --color-text: #2F3F34;
+  --color-text-muted: #58615B;
+  --color-display: #454846;
+  --color-input-border: #89958B;
+  --color-source-highlight: #BEE5D1;
+  --color-source-secondary: #FDB6E6;
+  --color-text-faint: #A8A8A8;
+  --color-error: #C44536;
+  --color-warning: #E8C547;
+  --color-success: #3F5C43;
+  --color-sage: #D7E6D8;
+  --color-sage-text: #2F4A32;
+  --color-yellow: #F3E48A;
+  --color-yellow-text: #6B5A12;
+  --color-pink: #F0A8C8;
+  --color-pink-text: #7A2E55;
+  --color-blue-soft: #D7E4F2;
+  --color-surface-bobby: #DFE9DF;
+  --color-stroke: #BBBCC0;
+  --color-stroke-soft: #BEC3C0;
+  --color-state-stable: #C3CAD8;
+  --color-state-alert: #FFFD98;
+  --color-state-error: #EF4444;
+  --color-state-success: #1DB76A;
+  --color-state-night: #D7E4F2;
+  --color-text-primary: #28392E;
+  --color-text-secondary: #58605A;
+  --color-special: #63BA98;
+
+  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  --font-label: var(--font-share-tech), ui-monospace, monospace;
+}
+
+html {
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+/* Foco visível só para teclado; o toque não deixa contorno. */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@utility pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 18px);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}

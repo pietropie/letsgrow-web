@@ -1,0 +1,77 @@
+# Deploy automático do app web (app.letsgrowapp.com.br) no Coolify.
+#
+# A cada push na main: npm ci, lint, testes da lógica copiada do mobile e build.
+# Só se tudo passar, chama a Deploy webhook do app "LetsGrow Web" no Coolify.
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   COOLIFY_TOKEN       API token do Coolify com permissão "deploy" (o mesmo do backend e do admin)
+#   COOLIFY_DEPLOY_URL  Deploy webhook do app web (aba Webhooks no Coolify)
+#
+# Mesmo desenho do letsgrow-admin; ver analise-2026-10-16/DEVOPS.md e WEBAPP.md §5.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 24: os testes .cjs importam .ts direto (remoção de tipos nativa). O Dockerfile usa Node 22 só para rodar.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Testes
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Disparar deploy no Coolify
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_DEPLOY_URL: ${{ secrets.COOLIFY_DEPLOY_URL }}
+        run: |
+          if [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_DEPLOY_URL" ]; then
+            echo "::error::Faltam os secrets COOLIFY_TOKEN e/ou COOLIFY_DEPLOY_URL."
+            exit 1
+          fi
+          # O Coolify só aceita POST em /api/v1/deploy (GET responde 405).
+          code=$(curl --silent --show-error --max-time 60 -X POST \
+            -H "Authorization: Bearer $COOLIFY_TOKEN" \
+            -o response.json -w '%{http_code}' "$COOLIFY_DEPLOY_URL") || code="000"
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            msg=$(jq -r '.message // empty' response.json 2>/dev/null | head -c 300)
+            echo "::error::Coolify respondeu HTTP $code${msg:+: $msg}"
+            exit 1
+          fi
+          jq -r '.deployments[]?.message // .message // "Deploy solicitado."' response.json 2>/dev/null \
+            || echo "Deploy solicitado."
