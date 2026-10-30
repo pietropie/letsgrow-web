@@ -4,7 +4,7 @@
  * Tokens do app mobile (letsgrow-mobile/constants/theme.ts, cópia em src/shared/constants/theme.ts).
  * Mantenha os mesmos nomes: bg-primary aqui é colors.primary lá.
  */
-@theme {
+@theme static {
   --color-bg: #E2E1E0;
   --color-surface: #F8F5F2;
   --color-surface-high: #F7F6F3;

@@ -4,7 +4,7 @@ import { ServiceWorker } from "@/components/service-worker";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const figtree = Figtree({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-figtree" });
+const figtree = Figtree({ subsets: ["latin"], weight: ["400", "500", "600", "700", "900"], variable: "--font-figtree" });
 const shareTech = Share_Tech({ subsets: ["latin"], weight: "400", variable: "--font-share-tech" });
 
 export const metadata: Metadata = {
