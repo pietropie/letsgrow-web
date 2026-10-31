@@ -44,6 +44,8 @@ export function LoginForm({ next }: { next: string }) {
         <Button type="submit" label={loading ? "Entrando…" : "Entrar"} loading={loading} />
         <ButtonLink secondary label="Esqueci minha senha" href="/esqueci-a-senha" />
         <ButtonLink secondary label="Criar uma conta" href="/criar-conta" />
+        {/* Entrar com o Google ainda não existe na web (WEBAPP.md §1, fase 2). */}
+        <PageSubtitle>Criou a conta com o Google no app? Use “Esqueci minha senha” com o mesmo e-mail para definir uma senha.</PageSubtitle>
       </form>
     </EntryPage>
   );
