@@ -41,6 +41,7 @@ function AccountMenu() {
         <PageSubtitle>Você pode explorar sem cadastrar plantas.</PageSubtitle>
         <ActionRow title="Privacidade e dados" body="Informações sobre conta, fotos e conversas." href={routes.accountData()} active={at(routes.accountData())} />
         <ActionRow title="Entender os créditos" body="O que é incluído e o que pode ser cobrado." href={routes.creditHelp()} active={at(routes.creditHelp())} />
+        <ActionRow title="Como o LetsGrow funciona" body="Conheça o acompanhamento." href={routes.help()} />
       </> : <>
         <PageSubtitle>{name ? `${name} · conta privada` : "Conta privada"}</PageSubtitle>
         <ActionRow title="Créditos e plano" body="Saldo, renovação e histórico de uso." href={routes.credits()} active={at(routes.credits()) || at(routes.plans())} />
@@ -49,6 +50,8 @@ function AccountMenu() {
         <ActionRow title="Contexto do Bobby" body="Revise ou esqueça preferências." href={routes.bobbyMemory()} />
         <ActionRow title="Ajuda e suporte" body="Entenda o serviço ou relate um problema." href={routes.support()} active={at(routes.support())} />
       </>}
+      {/* Só na web: abrir como app, a partir da tela inicial do iPhone. */}
+      <ActionRow title="Usar como app no iPhone" body="Adicione o LetsGrow à Tela de Início." href={routes.install()} />
       <Button secondary label="Sair da conta" onClick={() => setConfirm(true)} />
       <ConfirmDialog open={confirm} title="Sair da conta" message="Deseja encerrar a sessão?" confirm="Sair" destructive onConfirm={logout} onCancel={() => setConfirm(false)} />
     </>

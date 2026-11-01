@@ -34,7 +34,7 @@ export function LoginForm({ next }: { next: string }) {
   }
 
   return (
-    <EntryPage back={false}>
+    <EntryPage fallback="/boas-vindas">
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         <PageTitle>Bem-vindo de volta</PageTitle>
         <PageSubtitle>Entre para acessar seus registros.</PageSubtitle>

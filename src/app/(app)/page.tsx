@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useSyncExternalStore } from "react";
 import { AttentionCard, BobbyBrief, ClimateCard, EnvironmentMini, HomeGreeting, HomePlantCard, SectionHeader, SkeletonCard } from "@/components/home/blocks";
 import { GrowPicker, GrowPlaceFlow, type PlaceMode } from "@/components/home/place-flow";
-import { ActionRow, Button, Notice, PageSubtitle, PageTitle } from "@/components/ui";
+import { InstallBanner } from "@/components/install-banner";
+import { ActionRow, Button, ButtonLink, Notice, PageSubtitle, PageTitle } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
 import { useActivePlants, useBobAlerts, useDailyBrief, useGrow, useGrows, useMinuteOfDay, usePlanStatus, usePlantSummaries, useRememberedGrow } from "@/lib/hooks";
 import { routes } from "@/lib/routes";
@@ -58,15 +59,18 @@ export default function HomePage() {
   const name = me.data?.full_name?.trim().split(/\s+/)[0] ?? null;
   const greeting = <HomeGreeting name={name} date={today} grow={activeGrows.length > 1 ? grow?.name : null} onPickGrow={() => setPicker(true)} />;
 
-  // Figma 2160:5187 — nada cadastrado ainda: conhecer sem pressão. Só ficam os caminhos que já existem na web.
+  // Figma 2160:5187 — nada cadastrado ainda: conhecer sem pressão.
   if (!grows.isPending && !grows.isError && !activeGrows.length && plants.isSuccess && !plants.data.length) {
     return (
       <div className="flex max-w-[600px] flex-col gap-4">
         <PageTitle>No seu tempo.</PageTitle>
         <PageSubtitle>Você ainda não precisa cadastrar nada.</PageSubtitle>
         <Notice title="Olá, eu sou o Bobby" body="Posso explicar como o LetsGrow funciona e quais informações você controla." meta="Assistente de IA · conheça meus limites" />
+        <ButtonLink label="Conhecer o acompanhamento" href={routes.help()} />
         <ActionRow title="Quem pode ver meus dados?" body="Entenda fotos, conversas e privacidade." href={routes.beforeSharing()} />
-        <Notice white title="Cadastro de ambiente e planta" body="Ainda não chegou à versão web. Enquanto isso, use o app no celular." />
+        <ActionRow title="O que é incluído?" body="Conhecer o serviço não consome créditos." href={routes.creditHelp()} />
+        <ButtonLink secondary label="Cadastrar meu ambiente" href={routes.newGrow()!} />
+        <InstallBanner />
       </div>
     );
   }
@@ -85,7 +89,7 @@ export default function HomePage() {
         {greeting}
         {grows.isError
           ? <Button secondary label="Tentar carregar ambientes novamente" onClick={() => void grows.refetch()} />
-          : <Notice title="Seu primeiro ambiente" body="Você pode começar com um espaço simples e completar depois. O cadastro ainda não chegou à versão web; use o app no celular." />}
+          : <><Notice title="Seu primeiro ambiente" body="Você pode começar com um espaço simples e completar depois." /><ButtonLink secondary label="Adicionar ambiente" href={routes.newGrow()!} /></>}
       </div>
     );
   }
@@ -130,6 +134,7 @@ export default function HomePage() {
   return (
     <>
       {greeting}
+      <InstallBanner />
       <div className="grid items-start gap-[14px] md:grid-cols-2 md:gap-6">
         <div className="flex flex-col gap-[14px] md:gap-5">
           <ClimateCard

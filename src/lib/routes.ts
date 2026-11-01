@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- os parâmetros ficam para quando cada fase ligar o destino. */
 /**
  * Destinos das telas web. As áreas que ainda não foram construídas (WEBAPP.md §6) devolvem null, e o
  * botão ou link que levaria até elas não aparece: nada de ação que leva a uma tela vazia.
@@ -14,7 +13,7 @@ export const routes = {
   growEquipmentForm: (growId: string, kind: string) => `/ambientes/${growId}/equipamentos/${kind}`,
   growHistory: (growId: string) => `/ambientes/${growId}/historico`,
   growReading: (growId: string, readingId?: string): string | null => `/ambientes/${growId}/registro${readingId ? `?leitura=${readingId}` : ""}`,
-  growSensors: (_growId: string): string | null => null, // F7
+  growSensors: (growId: string): string | null => `/ambientes/${growId}/sensores`,
   plants: () => "/plantas",
   plantsCalendar: (): string | null => "/plantas?modo=calendario",
   archivedPlants: () => "/plantas/arquivadas",
@@ -49,6 +48,8 @@ export const routes = {
   dataExport: () => "/conta/privacidade/copia",
   deleteAccount: () => "/conta/privacidade/excluir",
   support: () => "/conta/suporte",
+  help: () => "/como-funciona",
+  install: () => "/instalar",
 };
 
 function query(params: Record<string, string | null | undefined>) {

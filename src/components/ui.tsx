@@ -203,3 +203,16 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
     </div>
   );
 }
+
+/** Figma Forms/CheckRow: caixa de seleção com título e linha de apoio, numa linha inteira clicável (48+ de altura). */
+export function CheckRow({ title, body, checked, onChange }: { title: string; body?: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border bg-surface p-4 hover:bg-surface-high">
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="h-5 w-5 shrink-0 accent-primary" />
+      <span className="flex flex-col gap-1">
+        <span className="text-base leading-6 font-semibold text-text">{title}</span>
+        {!!body && <span className="text-sm leading-5 text-text-muted">{body}</span>}
+      </span>
+    </label>
+  );
+}

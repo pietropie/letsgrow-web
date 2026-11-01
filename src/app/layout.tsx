@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Figtree, Share_Tech } from "next/font/google";
 import { ServiceWorker } from "@/components/service-worker";
+import { startupImages } from "@/lib/splash";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
   title: { default: "LetsGrow", template: "%s · LetsGrow" },
   description: "Registros do seu cultivo e o Bobby, no navegador.",
   applicationName: "LetsGrow",
-  appleWebApp: { capable: true, title: "LetsGrow", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "LetsGrow", statusBarStyle: "default", startupImage: startupImages },
   icons: { apple: "/icons/icon-180.png" },
   formatDetection: { telephone: false },
 };

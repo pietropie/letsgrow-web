@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { AgeConfirm } from "@/components/age-confirm";
 import { BottomTabs, SideNav } from "@/components/app-nav";
 import { Brand } from "@/components/ui";
 import { useLogout, useMe } from "@/lib/session-client";
@@ -26,6 +27,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           : <main className="mx-auto flex w-full max-w-[600px] flex-col gap-4 p-5 pb-32 md:max-w-[1120px] md:gap-5 md:p-6 md:pb-10 lg:px-8 lg:py-7">{children}</main>}
       </div>
       <BottomTabs />
+      <AgeConfirm />
     </div>
   );
 }

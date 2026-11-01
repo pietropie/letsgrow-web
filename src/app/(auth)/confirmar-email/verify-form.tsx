@@ -24,7 +24,7 @@ export function VerifyForm({ email }: { email: string }) {
     setLoading(true); setError("");
     try {
       await authAction("verify-email", { email, code });
-      router.replace("/");
+      router.replace("/primeiro-acesso");
       router.refresh();
     } catch (err) {
       setError(getErrorMessage(err, "Código inválido ou expirado."));
