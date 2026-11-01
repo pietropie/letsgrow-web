@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 /**
  * Figma W22 (padrões web): as folhas do mobile (seletores, definir local) viram um painel à direita de 400,
  * altura total, no tablet e no desktop; no celular continuam folha embaixo. Usa <dialog> nativo: foco preso,
  * Esc fecha e o fundo escurece a 40 %.
  */
-export function SidePanel({ open, onClose, title, subtitle, children }: { open: boolean; onClose: () => void; title: string; subtitle?: string; children: ReactNode }) {
+export function SidePanel({ open, onClose, title, subtitle, children, tall = false }: { open: boolean; onClose: () => void; title: string; subtitle?: string; children: ReactNode; tall?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
@@ -20,13 +21,13 @@ export function SidePanel({ open, onClose, title, subtitle, children }: { open: 
     if (!open && dialog.open) dialog.close();
   }, [open]);
   return (
-    <dialog ref={ref} onClose={onClose} aria-labelledby="side-panel-title"
+    <dialog ref={ref} onClose={onClose} aria-labelledby={titleId}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      className="m-0 mt-auto max-h-[85dvh] w-full max-w-none rounded-t-[20px] bg-surface p-0 text-text backdrop:bg-black/40 md:mt-0 md:ml-auto md:h-dvh md:max-h-none md:w-[400px] md:rounded-none">
+      className={`m-0 mt-auto w-full ${tall ? "h-[94dvh] max-h-[94dvh]" : "max-h-[85dvh]"} max-w-none rounded-t-[20px] bg-surface p-0 text-text backdrop:bg-black/40 md:mt-0 md:ml-auto md:h-dvh md:max-h-none md:w-[400px] md:rounded-none`}>
       <div className="pb-safe flex h-full flex-col gap-3 overflow-y-auto p-5">
         <div className="flex items-start gap-3">
           <div className="flex flex-1 flex-col gap-1">
-            <h2 id="side-panel-title" className="text-lg leading-6 font-semibold text-text-primary">{title}</h2>
+            <h2 id={titleId} className="text-lg leading-6 font-semibold text-text-primary">{title}</h2>
             {subtitle && <p className="text-sm leading-5 text-text-secondary">{subtitle}</p>}
           </div>
           <button type="button" onClick={onClose} aria-label="Fechar" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full hover:bg-bg cursor-pointer">

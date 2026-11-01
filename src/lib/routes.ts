@@ -15,10 +15,16 @@ export const routes = {
   growHistory: (growId: string) => `/ambientes/${growId}/historico`,
   growReading: (growId: string, readingId?: string): string | null => `/ambientes/${growId}/registro${readingId ? `?leitura=${readingId}` : ""}`,
   growSensors: (_growId: string): string | null => null, // F7
-  plant: (_plantId: string): string | null => null, // F4
-  plantDiary: (_plantId: string): string | null => null, // F4
-  plantsCalendar: (): string | null => null, // F4
-  newPlant: (_growId: string): string | null => null, // F4
+  plants: () => "/plantas",
+  plantsCalendar: (): string | null => "/plantas?modo=calendario",
+  archivedPlants: () => "/plantas/arquivadas",
+  newPlant: (growId?: string): string | null => `/plantas/nova${growId ? `?ambiente=${growId}` : ""}`,
+  plant: (plantId: string): string | null => `/plantas/${plantId}`,
+  plantInfo: (plantId: string) => `/plantas/${plantId}/informacoes`,
+  plantPhotos: (plantId: string) => `/plantas/${plantId}/fotos`,
+  plantDiary: (plantId: string, opts?: { novo?: boolean }): string | null => `/plantas/${plantId}/diario${opts?.novo ? "?novo=1" : ""}`,
+  diaryEntry: (plantId: string, eventId: string) => `/plantas/${plantId}/registro/${eventId}`,
+  termHelp: () => "/plantas/ajuda",
   bobbyObservation: (_plantId: string): string | null => null, // F5
   /** Abre o Bobby com uma pergunta pronta (dica do clima, resumo). */
   bobbyAsk: (_prompt: string, _ctx?: { grow_id?: string; plant_id?: string | null }): string | null => null, // F5

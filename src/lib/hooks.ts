@@ -3,7 +3,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { BobAlertsResponse } from "@/shared/types/bob";
-import type { DailyBriefResponse, GrowResponse, GrowSummary, PlanStatusResponse, PlantResponse, PlantSummary } from "@/shared/types/api";
+import type { DailyBriefResponse, EventResponse, GrowResponse, GrowSummary, PlanStatusResponse, PlantResponse, PlantSummary } from "@/shared/types/api";
 import type { EnvironmentReading, EnvironmentReadingPage, GrowArchiveResult } from "@/shared/types/features";
 import { HISTORY_PAGE_SIZE, nextHistoryOffset } from "@/shared/lib/growHistory";
 import { api } from "./api";
@@ -158,4 +158,53 @@ export function useEnvironmentReadings(growId?: string | null) {
     queryFn: ({ pageParam }) => api<EnvironmentReadingPage>(`/grows/${growId}/readings?limit=${HISTORY_PAGE_SIZE}&offset=${pageParam}`),
     getNextPageParam: (last, pages) => nextHistoryOffset(pages.reduce((n, p) => n + p.items.length, 0), last.total),
   });
+}
+
+// ── Plantas e diário (F4) ───────────────────────────────────────────────────────────────────────────────────────
+
+/** GET /plants com filtros opcionais (mesma chave do usePlants do mobile). */
+export function usePlants(params?: { grow_id?: string; is_active?: boolean }) {
+  const qs = new URLSearchParams(Object.entries(params ?? {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString();
+  return useQuery({ queryKey: ["plants", params], queryFn: () => api<PlantResponse[]>(`/plants${qs ? `?${qs}` : ""}`) });
+}
+
+export function usePlant(plantId: string | null | undefined) {
+  return useQuery({ queryKey: ["plants", plantId], queryFn: () => api<PlantResponse>(`/plants/${plantId}`), enabled: !!plantId });
+}
+
+export function useEvents(plantId: string | null | undefined) {
+  return useQuery({ queryKey: ["plants", plantId, "events"], queryFn: () => api<EventResponse[]>(`/plants/${plantId}/events`), enabled: !!plantId });
+}
+
+export type PlantPayload = {
+  display_name?: string | null; strain_name?: string; strain_type?: "photo" | "auto" | "unknown"; genetics?: string | null; seed_type?: string;
+  grow_id?: string; pot_label?: string | null; germination_date?: string | null; current_phase?: string;
+};
+
+export function useCreatePlant() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PlantPayload) => api<PlantResponse>("/plants", { method: "POST", body }),
+    // ['grows'] carrega active_plant_count ("N plantas" no Início, em Ambientes e em Plantas).
+    onSuccess: () => Promise.all([client.invalidateQueries({ queryKey: ["plants"] }), client.invalidateQueries({ queryKey: ["grows"] })]),
+  });
+}
+
+export function useUpdatePlant(plantId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PlantPayload) => api<PlantResponse>(`/plants/${plantId}`, { method: "PATCH", body }),
+    onSuccess: () => Promise.all([client.invalidateQueries({ queryKey: ["plants"] }), client.invalidateQueries({ queryKey: ["grows"] })]),
+  });
+}
+
+/** Depois de criar, editar ou apagar um registro: o diário, a ficha e os resumos leem dele. */
+export function useInvalidateDiary() {
+  const client = useQueryClient();
+  return (plantIds: (string | null | undefined)[] = []) => Promise.all([
+    ...plantIds.filter(Boolean).map(id => client.invalidateQueries({ queryKey: ["plants", id, "events"] })),
+    client.invalidateQueries({ queryKey: ["diary"] }),
+    client.invalidateQueries({ queryKey: ["plants"] }),
+    client.invalidateQueries({ queryKey: ["grows"] }),
+  ]);
 }
