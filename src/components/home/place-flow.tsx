@@ -24,7 +24,7 @@ function readPosition(): Promise<GeolocationPosition> {
   });
 }
 
-export function GrowPlaceFlow({ growId, growName, mode, onClose }: { growId: string; growName: string; mode: PlaceMode; onClose: () => void }) {
+export function GrowPlaceFlow({ growId, growName, mode, onClose, canRemove = false }: { growId: string; growName: string; mode: PlaceMode; onClose: () => void; canRemove?: boolean }) {
   const update = useUpdateGrow(growId);
   const [sheet, setSheet] = useState<"place" | "city" | null>(null);
   const [denied, setDenied] = useState(false);
@@ -63,12 +63,20 @@ export function GrowPlaceFlow({ growId, growName, mode, onClose }: { growId: str
     catch { setError("Não foi possível salvar o local. Tente de novo."); }
   }
 
+  async function remove() {
+    setError(null);
+    try { await update.mutateAsync({ lat: null, lon: null }); close(); }
+    catch { setError("Não foi possível remover o local. Tente de novo."); }
+  }
+
   return (
     <>
       <SidePanel open={sheet === "place"} onClose={close} title={`Onde fica a ${growName}?`} subtitle="O clima vem desse local. Vale para este ambiente.">
         <PanelOption selected title={locating ? "Buscando sua localização…" : "Usar minha localização aproximada"} disabled={locating}
           body="O navegador pede permissão uma vez. Guardamos só a coordenada arredondada (≈1 km)." onClick={() => void locate()} />
         <PanelOption title="Buscar cidade" body="Digite o nome da cidade, sem usar a localização." onClick={() => { setDenied(false); setSheet("city"); }} />
+        {canRemove && <PanelOption title="Remover local" body="O clima deixa de aparecer no Início." disabled={update.isPending} onClick={() => void remove()} />}
+        {!!error && <p role="alert" className="text-xs text-state-error">{error}</p>}
         <p className="text-xs leading-4 text-text-secondary">Sua localização não é enviada a outras pessoas nem guardada em histórico.</p>
       </SidePanel>
       <CitySearch open={sheet === "city"} onClose={close} denied={denied} saving={update.isPending} error={error} onPick={p => void pick(p)} />
@@ -104,9 +112,11 @@ function CitySearch({ open, onClose, denied, saving, error, onPick }: { open: bo
 }
 
 /** H7 "Qual ambiente mostrar?": um ambiente por vez, lembrado neste navegador. */
-export function GrowPicker({ open, onClose, grows, current, onPick }: { open: boolean; onClose: () => void; grows: { id: string; name: string; line: string }[]; current: string | null; onPick: (id: string) => void }) {
+export function GrowPicker({ open, onClose, grows, current, onPick, title = "Qual ambiente mostrar?", subtitle = "O Início mostra o clima, a atenção e as plantas de um ambiente por vez. A escolha fica lembrada." }: {
+  open: boolean; onClose: () => void; grows: { id: string; name: string; line: string }[]; current: string | null; onPick: (id: string) => void; title?: string; subtitle?: string;
+}) {
   return (
-    <SidePanel open={open} onClose={onClose} title="Qual ambiente mostrar?" subtitle="O Início mostra o clima, a atenção e as plantas de um ambiente por vez. A escolha fica lembrada.">
+    <SidePanel open={open} onClose={onClose} title={title} subtitle={subtitle}>
       {grows.map(g => <PanelOption key={g.id} title={g.name} body={g.line} selected={g.id === current} onClick={() => onPick(g.id)} />)}
     </SidePanel>
   );

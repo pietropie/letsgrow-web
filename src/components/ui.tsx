@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState, type InputHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
 
 /**
  * Equivalentes web de letsgrow-mobile/components/ui/DesignSystem.tsx: mesmas medidas (botão e campo
@@ -118,6 +118,87 @@ export function PasswordField(props: Omit<InputHTMLAttributes<HTMLInputElement>,
         className="absolute right-2 top-[30px] min-h-11 rounded-lg px-3 text-sm font-semibold text-primary cursor-pointer">
         {visible ? "Ocultar" : "Mostrar"}
       </button>
+    </div>
+  );
+}
+
+const fieldBox = "rounded-xl border bg-white px-[14px] py-3 text-base leading-6 text-text placeholder:text-text-muted outline-none focus:border-2 focus:border-primary focus:px-[13px] focus:py-[11px]";
+
+/** Nota longa (o TextField multiline do mobile). Texto 16 px: o Safari do iPhone não dá zoom ao focar. */
+export function TextArea({ label, hint, error, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; hint?: string; error?: string }) {
+  const id = useId();
+  const note = error || hint;
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={id} className="text-sm leading-5 font-semibold text-text">{label}</label>
+      <textarea id={id} rows={3} aria-describedby={note ? `${id}-note` : undefined} {...props} className={`min-h-[96px] resize-y ${fieldBox} ${error ? "border-error" : "border-input-border"}`} />
+      {!!note && <p id={`${id}-note`} className={`text-sm leading-5 ${error ? "text-error" : "text-text-muted"}`}>{note}</p>}
+    </div>
+  );
+}
+
+/**
+ * Figma Forms/ChoiceField. Na web é um <select> nativo com a mesma caixa: no iPhone abre a roda do sistema e no
+ * desktop o menu navegável por ↑↓, Enter e Esc (W22). Vazio mostra "Não informado".
+ */
+export function ChoiceField({ label, hint = "Toque para escolher.", value, options, onChange, disabled = false }: { label: string; hint?: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void; disabled?: boolean }) {
+  const id = useId();
+  return (
+    <div className={`flex flex-col gap-2 ${disabled ? "opacity-40" : ""}`}>
+      <label htmlFor={id} className="text-sm leading-5 font-semibold text-text">{label}</label>
+      <div className="relative">
+        <select id={id} value={value} disabled={disabled} onChange={e => onChange(e.target.value)} aria-describedby={hint ? `${id}-note` : undefined}
+          className={`min-h-[52px] w-full appearance-none pr-10 ${fieldBox} border-input-border ${value ? "" : "text-text-muted"}`}>
+          {!options.some(o => o.value === value) && <option value={value}>Não informado</option>}
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <svg aria-hidden width={20} height={20} viewBox="0 0 20 20" className="pointer-events-none absolute top-4 right-3"><path d="M5 7.5l5 5 5-5" stroke="var(--color-display)" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
+      </div>
+      {!!hint && <p id={`${id}-note`} className="text-sm leading-5 text-text-muted">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * Figma W22 Feedback/ConfirmDialog: diálogo central de 480 no lugar do Alert do mobile. <dialog> nativo:
+ * foco preso, Esc fecha, fundo escurecido a 40 %.
+ */
+export function ConfirmDialog({ open, title, message, confirm, destructive = false, busy = false, onConfirm, onCancel }: { open: boolean; title: string; message: string; confirm: string; destructive?: boolean; busy?: boolean; onConfirm: () => void; onCancel: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+  }, [open]);
+  return (
+    <dialog ref={ref} onClose={onCancel} aria-labelledby="confirm-title" className="m-auto w-[calc(100%-32px)] max-w-[480px] rounded-[20px] bg-surface p-0 text-text backdrop:bg-black/40">
+      <div className="flex flex-col gap-4 p-5">
+        <h2 id="confirm-title" className="text-lg leading-6 font-semibold">{title}</h2>
+        <p className="text-base leading-6">{message}</p>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row">
+          <button type="button" onClick={onCancel} disabled={busy} className={`${buttonBase} ${buttonKind.secondary}`}>Cancelar</button>
+          <button type="button" onClick={onConfirm} disabled={busy} aria-busy={busy || undefined}
+            className={`${buttonBase} ${destructive ? "bg-error text-white hover:opacity-90" : buttonKind.primary}`}>{confirm}</button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
+export function Spinner({ label = "Carregando…" }: { label?: string }) {
+  return <p role="status" className="text-sm leading-5 text-text-muted">{label}</p>;
+}
+
+/** Título de página com subtítulo e ação à direita (W15, W16). */
+export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="min-w-0 flex-1">
+        <h1 className="text-[28px] leading-9 font-bold text-text-primary">{title}</h1>
+        {subtitle && <p className="text-sm leading-5 text-text-secondary">{subtitle}</p>}
+      </div>
+      {action}
     </div>
   );
 }

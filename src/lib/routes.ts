@@ -5,14 +5,22 @@
  * Ao entregar uma fase, troque o null pelo caminho.
  */
 export const routes = {
-  growPanel: (_growId: string): string | null => null, // F3
-  growReading: (_growId: string): string | null => null, // F3
+  grows: () => "/ambientes",
+  archivedGrows: () => "/ambientes/arquivados",
+  newGrow: (): string | null => "/ambientes/novo",
+  growPanel: (growId: string): string | null => `/ambientes/${growId}`,
+  growEdit: (growId: string) => `/ambientes/${growId}/editar`,
+  growEquipment: (growId: string) => `/ambientes/${growId}/equipamentos`,
+  growEquipmentForm: (growId: string, kind: string) => `/ambientes/${growId}/equipamentos/${kind}`,
+  growHistory: (growId: string) => `/ambientes/${growId}/historico`,
+  growReading: (growId: string, readingId?: string): string | null => `/ambientes/${growId}/registro${readingId ? `?leitura=${readingId}` : ""}`,
+  growSensors: (_growId: string): string | null => null, // F7
   plant: (_plantId: string): string | null => null, // F4
   plantDiary: (_plantId: string): string | null => null, // F4
   plantsCalendar: (): string | null => null, // F4
-  newGrow: (): string | null => null, // F3
   newPlant: (_growId: string): string | null => null, // F4
   bobbyObservation: (_plantId: string): string | null => null, // F5
   /** Abre o Bobby com uma pergunta pronta (dica do clima, resumo). */
   bobbyAsk: (_prompt: string, _ctx?: { grow_id?: string; plant_id?: string | null }): string | null => null, // F5
+  bobby: (): string | null => null, // F5
 };
