@@ -19,24 +19,29 @@ function loadImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
-export async function shrinkPhoto(file: File): Promise<Blob> {
+export type ShrinkOptions = { maxSide?: number; quality?: number };
+
+export async function shrinkPhoto(file: File, { maxSide = MAX_SIDE, quality = 0.82 }: ShrinkOptions = {}): Promise<Blob> {
   const img = await loadImage(file);
-  const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+  const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(img.naturalWidth * scale);
   canvas.height = Math.round(img.naturalHeight * scale);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Não foi possível preparar a foto.");
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return new Promise((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("Não foi possível preparar a foto.")), "image/jpeg", 0.82));
+  return new Promise((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("Não foi possível preparar a foto.")), "image/jpeg", quality));
 }
 
-/** Reduz e envia; devolve as chaves privadas (photo_keys) na mesma ordem. */
-export async function uploadEventPhotos(files: File[]): Promise<string[]> {
+/**
+ * Reduz e envia; devolve as chaves privadas (photo_keys) na mesma ordem. O Bobby usa { maxSide: 768, quality: 0.6 },
+ * perto do que o mobile manda para a análise (768 px).
+ */
+export async function uploadEventPhotos(files: File[], options?: ShrinkOptions): Promise<string[]> {
   const keys: string[] = [];
   for (const file of files) {
     const body = new FormData();
-    body.append("file", await shrinkPhoto(file), "foto.jpg");
+    body.append("file", await shrinkPhoto(file, options), "foto.jpg");
     const res = await fetch("/api/upload", { method: "POST", body, headers: { [WEB_HEADER]: "1" } });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.object_key) throw new ApiError(res.status, data ?? { detail: "Não foi possível enviar a foto." });

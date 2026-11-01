@@ -25,8 +25,22 @@ export const routes = {
   plantDiary: (plantId: string, opts?: { novo?: boolean }): string | null => `/plantas/${plantId}/diario${opts?.novo ? "?novo=1" : ""}`,
   diaryEntry: (plantId: string, eventId: string) => `/plantas/${plantId}/registro/${eventId}`,
   termHelp: () => "/plantas/ajuda",
-  bobbyObservation: (_plantId: string): string | null => null, // F5
-  /** Abre o Bobby com uma pergunta pronta (dica do clima, resumo). */
-  bobbyAsk: (_prompt: string, _ctx?: { grow_id?: string; plant_id?: string | null }): string | null => null, // F5
-  bobby: (): string | null => null, // F5
+  bobby: (): string | null => "/bobby",
+  /** Abre o Bobby com uma pergunta pronta (dica do clima, resumo): ela é enviada numa conversa nova. */
+  bobbyAsk: (prompt: string, ctx?: { grow_id?: string; plant_id?: string | null }): string | null => `/bobby?${query({ pergunta: prompt, planta: ctx?.plant_id, ambiente: ctx?.grow_id })}`,
+  /** Abre o Bobby já com a planta ou o ambiente como contexto, sem enviar nada. */
+  bobbyWith: (ctx: { plantId?: string | null; growId?: string | null }) => `/bobby${ctx.plantId || ctx.growId ? `?${query({ planta: ctx.plantId, ambiente: ctx.growId })}` : ""}`,
+  bobbyObservation: (plantId?: string): string | null => `/bobby/observacao${plantId ? `?planta=${plantId}` : ""}`,
+  bobbyObservationBase: (plantId: string, alertId?: string) => `/bobby/base?${query({ planta: plantId, alerta: alertId })}`,
+  bobbyObservationFeedback: (plantId: string, alertId?: string) => `/bobby/aviso?${query({ planta: plantId, alerta: alertId })}`,
+  bobbyMemory: () => "/bobby/memoria",
+  // F6: Conta e pagamentos.
+  credits: (): string | null => null,
+  packs: (): string | null => null,
+  plans: (): string | null => null,
+  accountData: (): string | null => null,
 };
+
+function query(params: Record<string, string | null | undefined>) {
+  return new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => !!e[1])).toString();
+}

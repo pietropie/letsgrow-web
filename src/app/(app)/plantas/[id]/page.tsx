@@ -119,6 +119,7 @@ export default function PlantPage() {
           <div className="mt-2 flex flex-col gap-1.5 rounded-lg bg-[#E1EBE6] p-2">
             <div className="flex items-center gap-1"><img src="/figma/bobby-28.svg" alt="" /><h2 className="font-label text-xl leading-6 text-display">Acompanhamento do Bobby</h2></div>
             <p className="text-base leading-6 text-display">{alert?.message ?? tip.data?.tip ?? "Nenhuma observação retornada para esta planta. Você pode conversar sobre os registros com o Bobby."}</p>
+            <Link href={routes.bobbyObservation(plant.id)!} className={soft}>VER OBSERVAÇÃO</Link>
           </div>
           <div className="h-px bg-stroke" />
           <section className="flex flex-col gap-2" aria-label="Fase">

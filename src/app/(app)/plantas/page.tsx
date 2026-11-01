@@ -134,6 +134,7 @@ function PlantCard({ plant, grow, summary, advice, onRecord }: { plant: PlantRes
       <div className="mt-1 flex flex-col gap-1.5 rounded-lg bg-[#E1EBE6] p-2">
         <div className="flex items-center gap-1.5"><img src="/figma/bobby-plant.svg" alt="" /><h3 className="font-label text-xl leading-[26px] text-display">Acompanhamento do Bobby</h3></div>
         <p className="text-base leading-6">{advice}</p>
+        <Link href={routes.bobbyObservation(plant.id)!} className={soft}>VER OBSERVAÇÃO</Link>
       </div>
       <div className="flex flex-col gap-2 py-2.5">
         <div className="flex items-center justify-between"><span className="font-label text-base text-display">FASE ATUAL</span>
