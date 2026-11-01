@@ -80,7 +80,7 @@ export function UnavailableNotice({ body = "Esta área ainda não chegou à vers
   return <Notice white title="Ainda não disponível na web" body={body} />;
 }
 
-export function ActionRow({ title, body, href, onClick }: { title: string; body: string; href?: string; onClick?: () => void }) {
+export function ActionRow({ title, body, href, onClick, active = false }: { title: string; body: string; href?: string; onClick?: () => void; active?: boolean }) {
   const inner = (
     <>
       <span className="flex flex-1 flex-col gap-1 text-left">
@@ -91,8 +91,9 @@ export function ActionRow({ title, body, href, onClick }: { title: string; body:
       <img src="/figma/chevron-right.svg" alt="" />
     </>
   );
-  const cls = "flex w-full items-center gap-3 rounded-xl border border-border bg-surface p-4 hover:bg-surface-high active:opacity-80 cursor-pointer";
-  return href ? <Link href={href} className={cls}>{inner}</Link> : <button type="button" onClick={onClick} className={cls}>{inner}</button>;
+  // `active`: a linha aberta ao lado, no mestre-detalhe do desktop (W19).
+  const cls = `flex w-full items-center gap-3 rounded-xl border bg-surface p-4 hover:bg-surface-high active:opacity-80 cursor-pointer ${active ? "border-text-primary" : "border-border"}`;
+  return href ? <Link href={href} aria-current={active ? "page" : undefined} className={cls}>{inner}</Link> : <button type="button" onClick={onClick} className={cls}>{inner}</button>;
 }
 
 /** "Voltar": histórico do navegador quando houver, senão o `fallback`. */

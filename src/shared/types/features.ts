@@ -76,6 +76,8 @@ export interface CreditPackage {
   credits: number
   price_brl: number
   validity_days: number | null
+  /** Produto consumível no Google Play; null = pacote não é vendido no Android. */
+  google_product_id: string | null
 }
 
 export interface CreditQuote {
@@ -93,7 +95,7 @@ export interface CreditQuote {
 
 export interface CreditPurchase {
   id: string
-  status: 'pending' | 'paid' | 'failed' | 'canceled'
+  status: 'pending' | 'paid' | 'failed' | 'canceled' | 'refunded' | 'charged_back'
   label: string
   credits: number
   price_brl: number
@@ -123,4 +125,47 @@ export interface SupportMessage {
   subject: string
   status: 'received' | 'answered'
   created_at: string
+}
+
+// ── Assinaturas (GET /billing/*) ────────────────────────────────────────────
+
+export type BillingPeriod = 'monthly' | 'yearly'
+
+export interface BillingCatalog {
+  web_enabled: boolean
+  android_enabled: boolean
+  plans: {
+    plan_key: string
+    label: string
+    periods: { period: BillingPeriod; months: number; price_brl: number | null; google_product_id: string | null; google_base_plan_id: string | null }[]
+  }[]
+}
+
+export interface BillingSubscription {
+  id: string
+  plan_key: string
+  period: BillingPeriod
+  provider: 'mercadopago' | 'google_play'
+  kind: 'recurring' | 'prepaid'
+  status: string
+  auto_renew: boolean
+  current_period_end: string | null
+  access_until: string | null
+  managed_by: 'web' | 'google_play' | null
+}
+
+export interface AccountBilling {
+  plan: string
+  effective_plan: string
+  plan_expires_at: string | null
+  current: BillingSubscription | null
+  upcoming: BillingSubscription | null
+  managed_by: 'web' | 'google_play' | null
+  play_manage_url: string
+}
+
+export interface GoogleVerifyResult {
+  kind: 'subscription' | 'credits'
+  subscription: BillingSubscription | null
+  purchase: CreditPurchase | null
 }

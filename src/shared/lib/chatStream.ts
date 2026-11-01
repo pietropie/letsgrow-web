@@ -168,12 +168,16 @@ export async function sendChat<R>(opts: { stream: () => Promise<R>; fallback: ()
 
 // ── Per-answer feedback (POST /bob/feedback) ─────────────────────────────────────────────────────────────────────
 
-export type FeedbackReason = 'wrong_record' | 'missing_context' | 'not_helpful' | 'other'
-/** B7 "O que não estava certo?": labels and lines from the Figma (2353:15795). */
+export type FeedbackReason = 'wrong_record' | 'missing_context' | 'not_helpful' | 'offensive' | 'other'
+/**
+ * B7 "O que não estava certo?": labels and lines from the Figma (2353:15795). "Conteúdo ofensivo ou inadequado" is not
+ * drawn: the Play policy for generative AI asks for a report of offensive content inside the app (PLAYSTORE.md P6).
+ */
 export const FEEDBACK_REASONS: { key: FeedbackReason; label: string; sub: string }[] = [
   { key: 'wrong_record', label: 'Usou um registro errado ou antigo', sub: 'Abrir os registros usados e corrigir' },
   { key: 'missing_context', label: 'Faltou contexto', sub: 'Ex.: troquei o substrato, mudei a luz' },
   { key: 'not_helpful', label: 'A resposta não ajudou', sub: 'Sem corrigir nada' },
+  { key: 'offensive', label: 'Conteúdo ofensivo ou inadequado', sub: 'A equipe revisa esta resposta' },
   { key: 'other', label: 'Outro motivo', sub: 'Escrever com suas palavras' },
 ]
 
@@ -183,6 +187,17 @@ export function feedbackBody(conversationId: string, messageId: string, rating: 
   if (rating === 'up' && reason) throw new Error("Motivo só vale para 'não gostei'.")
   const text = message?.trim()
   return { conversation_id: conversationId, message_id: messageId, rating, ...(rating === 'down' && reason ? { reason } : {}), ...(text ? { message: text.slice(0, 1000) } : {}) }
+}
+
+const OFFENSIVE_NOTE = 'Conteúdo ofensivo ou inadequado'
+/**
+ * The same report for a backend that does not know `offensive` yet (it answers 422 to an unknown reason): it goes as
+ * "other" with the reason written at the start of the message, so it still reaches the review queue. Null otherwise.
+ */
+export function offensiveFallback(body: ReturnType<typeof feedbackBody>): ReturnType<typeof feedbackBody> | null {
+  if (!('reason' in body) || body.reason !== 'offensive') return null
+  const text = 'message' in body && body.message ? `${OFFENSIVE_NOTE}: ${body.message}` : OFFENSIVE_NOTE
+  return { ...body, reason: 'other' as const, message: text.slice(0, 1000) }
 }
 
 // ── Sources (B3 chips) ───────────────────────────────────────────────────────────────────────────────────────────
@@ -208,7 +223,7 @@ export function sourceChip(src: ChatSource): { label: string; tone: SourceTone; 
 }
 
 export type SavedRating = { rating: 'up' | 'down'; reason: FeedbackReason | null }
-const REASONS: FeedbackReason[] = ['wrong_record', 'missing_context', 'not_helpful', 'other']
+const REASONS: FeedbackReason[] = ['wrong_record', 'missing_context', 'not_helpful', 'offensive', 'other']
 /**
  * The person's current rating of each saved answer (GET /ai/conversations/{id}: `feedback` {rating, reason} on
  * assistant messages since backend 084c43a). Answers without `feedback`, older backends and unknown values are skipped.

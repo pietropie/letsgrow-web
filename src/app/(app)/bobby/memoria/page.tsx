@@ -91,7 +91,7 @@ export default function MemoryPage() {
         ))}
       {!!list.length && list.length < 20 && <Button secondary label="Adicionar outra preferência" onClick={() => edit()} />}
       {conversationContext}
-      {routes.accountData() && <ActionRow title="Como funciona a memória" body="Histórico de conversa e memória são controles diferentes." href={routes.accountData()!} />}
+      <ActionRow title="Como funciona a memória" body="Histórico de conversa e memória são controles diferentes." href={routes.accountData()} />
       <ConfirmDialog open={!!forgetting} title="Esquecer esta preferência?" message={`“${forgetting?.content ?? ""}”\nEla deixará de ser usada nas próximas conversas. Isso não apaga automaticamente o histórico da conversa.`}
         confirm="Esquecer preferência" destructive busy={forget.isPending} onConfirm={confirmForget} onCancel={() => setForgetting(null)} />
     </div>

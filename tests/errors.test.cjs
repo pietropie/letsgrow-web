@@ -36,3 +36,9 @@ test('server refusals show their reason; network and 5xx stay technical', () => 
   assert.equal(rejectionMessage(http(404, undefined)), null)
   assert.equal(getErrorMessage(http(403, AI_LIMIT)), AI_LIMIT)
 })
+
+test('payment errors ({code, message}) show the server message', () => {
+  const detail = { code: 'purchase_account_mismatch', message: 'Esta compra pertence a outra conta.' }
+  assert.equal(getErrorMessage(http(403, detail)), 'Esta compra pertence a outra conta.')
+  assert.equal(getErrorMessage(http(503, { code: 'payments_unavailable', message: 'Compra ainda não disponível.' })), 'Compra ainda não disponível.')
+})

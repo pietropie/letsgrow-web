@@ -53,8 +53,7 @@ export default function NewGrowPage() {
       <TextField label="Nome do ambiente" placeholder="Meu ambiente" hint="Pode ser um cômodo, um espaço externo ou outro local." value={name} onChange={e => setName(e.target.value)} autoCapitalize="sentences" enterKeyHint="done" />
       <Notice title="Só isso é necessário agora" body="Localização, estrutura e equipamentos ficam para depois." />
       <FormError message={error} />
-      {/* Planos chegam na F6; até lá o texto do servidor explica o limite. */}
-      {planLimited && <PageSubtitle>Os planos podem ser vistos no app no celular.</PageSubtitle>}
+      {planLimited && <ButtonLink secondary label="Ver planos" href={routes.plans()} />}
       <Button type="submit" label={create.isPending ? "Salvando…" : "Salvar ambiente"} loading={create.isPending} />
       <Button secondary label="Fazer isso depois" onClick={() => router.back()} />
     </form>

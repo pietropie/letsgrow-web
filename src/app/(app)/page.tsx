@@ -65,7 +65,7 @@ export default function HomePage() {
         <PageTitle>No seu tempo.</PageTitle>
         <PageSubtitle>Você ainda não precisa cadastrar nada.</PageSubtitle>
         <Notice title="Olá, eu sou o Bobby" body="Posso explicar como o LetsGrow funciona e quais informações você controla." meta="Assistente de IA · conheça meus limites" />
-        <ActionRow title="Quem pode ver meus dados?" body="Entenda fotos, conversas e privacidade." href="/privacidade" />
+        <ActionRow title="Quem pode ver meus dados?" body="Entenda fotos, conversas e privacidade." href={routes.beforeSharing()} />
         <Notice white title="Cadastro de ambiente e planta" body="Ainda não chegou à versão web. Enquanto isso, use o app no celular." />
       </div>
     );

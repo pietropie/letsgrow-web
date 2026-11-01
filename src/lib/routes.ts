@@ -34,11 +34,21 @@ export const routes = {
   bobbyObservationBase: (plantId: string, alertId?: string) => `/bobby/base?${query({ planta: plantId, alerta: alertId })}`,
   bobbyObservationFeedback: (plantId: string, alertId?: string) => `/bobby/aviso?${query({ planta: plantId, alerta: alertId })}`,
   bobbyMemory: () => "/bobby/memoria",
-  // F6: Conta e pagamentos.
-  credits: (): string | null => null,
-  packs: (): string | null => null,
-  plans: (): string | null => null,
-  accountData: (): string | null => null,
+  /** Reabre uma conversa salva (reler não custa nada). */
+  bobbyConversation: (id: string) => `/bobby?conversa=${id}`,
+  account: () => "/conta",
+  credits: () => "/conta/creditos",
+  creditHelp: () => "/conta/creditos/o-que-consome",
+  creditLog: () => "/conta/creditos/historico",
+  packs: () => "/conta/creditos/pacotes",
+  plans: () => "/conta/planos",
+  notifications: () => "/conta/notificacoes",
+  notificationPrefs: () => "/conta/notificacoes/editar",
+  accountData: () => "/conta/privacidade",
+  beforeSharing: () => "/conta/privacidade/antes-de-compartilhar",
+  dataExport: () => "/conta/privacidade/copia",
+  deleteAccount: () => "/conta/privacidade/excluir",
+  support: () => "/conta/suporte",
 };
 
 function query(params: Record<string, string | null | undefined>) {

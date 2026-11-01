@@ -25,6 +25,11 @@ export function getErrorMessage(error: unknown, fallback = 'Algo deu errado. Ten
     return detail.msg
   }
 
+  // Erros de créditos/pagamentos: {code, message}
+  if (detail && typeof detail === 'object' && typeof detail.message === 'string') {
+    return detail.message
+  }
+
   const message = (error as any)?.message
   if (typeof message === 'string' && message.length > 0) return message
 

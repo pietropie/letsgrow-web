@@ -3,7 +3,7 @@
 process.env.TZ = 'America/Sao_Paulo'
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const { createSseParser, createUtf8Decoder, readChatStream, sendChat, feedbackBody, sourceChip, FEEDBACK_REASONS, savedRatings,
+const { createSseParser, createUtf8Decoder, readChatStream, sendChat, feedbackBody, offensiveFallback, sourceChip, FEEDBACK_REASONS, savedRatings,
   StreamUnavailable, StreamFailed, ChatCancelled } = require('../src/shared/lib/chatStream.ts')
 
 const enc = new TextEncoder()
@@ -79,9 +79,18 @@ test('feedback: like and dislike switch on the same answer; a reason only with d
   assert.deepEqual(feedbackBody('c1', 'm2', 'down', 'other', '  troquei a luz  '), { conversation_id: 'c1', message_id: 'm2', rating: 'down', reason: 'other', message: 'troquei a luz' })
   assert.throws(() => feedbackBody('c1', 'm2', 'up', 'not_helpful'), /não gostei/)
   assert.throws(() => feedbackBody('', 'm2', 'down'))
-  assert.deepEqual(FEEDBACK_REASONS.map(r => r.label), ['Usou um registro errado ou antigo', 'Faltou contexto', 'A resposta não ajudou', 'Outro motivo'])
+  assert.deepEqual(FEEDBACK_REASONS.map(r => r.label), ['Usou um registro errado ou antigo', 'Faltou contexto', 'A resposta não ajudou', 'Conteúdo ofensivo ou inadequado', 'Outro motivo'])
 })
 
+
+test('feedback: an offensive report still reaches a backend that does not know the reason yet', () => {
+  const body = feedbackBody('c1', 'm2', 'down', 'offensive')
+  assert.deepEqual(body, { conversation_id: 'c1', message_id: 'm2', rating: 'down', reason: 'offensive' })
+  assert.deepEqual(offensiveFallback(body), { conversation_id: 'c1', message_id: 'm2', rating: 'down', reason: 'other', message: 'Conteúdo ofensivo ou inadequado' })
+  assert.equal(offensiveFallback(feedbackBody('c1', 'm2', 'down', 'offensive', 'xingou')).message, 'Conteúdo ofensivo ou inadequado: xingou')
+  assert.equal(offensiveFallback(feedbackBody('c1', 'm2', 'down', 'not_helpful')), null)
+  assert.equal(offensiveFallback(feedbackBody('c1', 'm2', 'up')), null)
+})
 test('source chips: date after the type, tone by type, records open their screen', () => {
   assert.deepEqual(sourceChip({ kind: 'event', id: 'e1', title: 'Rega · pH 6,8', date: '2026-10-21', scope: 'focus', plant_id: 'p1' }),
     { label: 'Rega · 21 out · pH 6,8', tone: 'watering', target: { kind: 'event', eventId: 'e1', plantId: 'p1' } })

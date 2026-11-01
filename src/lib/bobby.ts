@@ -3,8 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChatMessage, ConversationSummary } from "@/shared/types/api";
 import type { BobMemory, CreditBalance, CreditQuote } from "@/shared/types/features";
-import { ChatCancelled, HttpError, StreamUnavailable, feedbackBody, readChatStream, sendChat, type ChatResult, type FeedbackReason, type StreamHandlers } from "@/shared/lib/chatStream";
-import { WEB_HEADER, api } from "./api";
+import { ChatCancelled, HttpError, StreamUnavailable, feedbackBody, offensiveFallback, readChatStream, sendChat, type ChatResult, type FeedbackReason, type StreamHandlers } from "@/shared/lib/chatStream";
+import { ApiError, WEB_HEADER, api } from "./api";
 
 /**
  * Bobby na web, igual ao letsgrow-mobile/lib/bobbyApi.ts: POST /ai/chat/stream pelo BFF (que repassa o corpo sem buffer)
@@ -68,8 +68,16 @@ export async function regenerateAnswer(messageId: string, quoteId?: string): Pro
   return toResult(await api<Record<string, unknown>>(`/ai/chat/${messageId}/regenerate`, { method: "POST", body: quoteId ? { quote_id: quoteId } : {}, signal: withTimeout(undefined, CHAT_TIMEOUT_MS) }));
 }
 
-export function rateAnswer(conversationId: string, messageId: string, rating: "up" | "down", reason?: FeedbackReason | null, message?: string | null) {
-  return api("/bob/feedback", { method: "POST", body: feedbackBody(conversationId, messageId, rating, reason, message) });
+/** "Conteúdo ofensivo" vai como "other" com o motivo escrito quando o backend ainda não conhece `offensive` (422). */
+export async function rateAnswer(conversationId: string, messageId: string, rating: "up" | "down", reason?: FeedbackReason | null, message?: string | null) {
+  const body = feedbackBody(conversationId, messageId, rating, reason, message);
+  try {
+    return await api("/bob/feedback", { method: "POST", body });
+  } catch (e) {
+    const fallback = offensiveFallback(body);
+    if (!fallback || (e as ApiError).response?.status !== 422) throw e;
+    return api("/bob/feedback", { method: "POST", body: fallback });
+  }
 }
 
 export function requestQuote(body: { task: "chat_message" | "photo_analysis"; plant_id?: string; grow_id?: string }) {

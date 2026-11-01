@@ -16,6 +16,8 @@ export interface UserResponse {
   is_verified: boolean
   is_dev_mode: boolean
   avatar_url: string | null
+  /** When the person confirmed being 18+ (backend 93431a3); null asks once. Absent on older backends. */
+  age_confirmed_at?: string | null
   created_at: string
 }
 

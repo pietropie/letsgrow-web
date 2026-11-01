@@ -163,7 +163,7 @@ export function NewEventPanel({ open, onClose, plantId, plants, defaultPlantIds,
       <PageSubtitle>Você escolhe como usar a imagem.</PageSubtitle>
       <Notice title="Guardar no diário" body="A foto fica vinculada à planta. Outros usuários não têm acesso a ela." />
       <p className="text-base leading-6">Analisar com o Bobby é uma ação separada. Antes de analisar, você verá quais dados serão usados e o custo.</p>
-      <Link href="/privacidade" className="text-sm font-semibold text-primary underline">Como os dados são tratados</Link>
+      <Link href={routes.beforeSharing()} className="text-sm font-semibold text-primary underline">Como os dados são tratados</Link>
       <Button label="Escolher foto" onClick={() => { setConsented(true); openPicker(); }} />
       <Button secondary label="Continuar só com a nota" onClick={() => { setKind("note"); setPage("form"); }} />
     </>;
