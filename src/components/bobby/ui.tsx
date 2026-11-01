@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { PanelOption, SidePanel } from "@/components/side-panel";
 import type { ConversationGroup, Suggestion } from "@/shared/lib/bobbyChat";
 import { parseMarkdown, type Inline } from "@/shared/lib/markdown";
@@ -60,26 +60,42 @@ export type MessageAction = { key: string; label: string; icon: string; onClick:
 export const SOURCE_COLOR: Record<MessageSource["tone"], string> = { watering: "var(--color-state-alert)", nutrient: "var(--color-source-secondary)", photo: "var(--color-state-stable)", knowledge: "var(--color-source-highlight)", other: "var(--color-surface)" };
 
 /**
- * Resposta do Bobby, sem balão, na largura toda. Enquanto chega, o autor mostra o status e o texto termina com "▍" (B2);
- * fontes e ações vêm com o `done`. Tocar numa fonte abre o painel "De onde veio isto" (W11).
+ * "FONTES · DE ONDE VEIO ISTO ▾" recolhido (pedido do usuário em 2026-11-01, ux/bobby-fontes-recolher.png): sem chips,
+ * para não tomar espaço da conversa. Aberto, uma linha de texto pequeno por registro; o que tem tela abre o registro.
  */
-export function AssistantMessage({ content, sources, actions, status, streaming, onSources }: { content: string; sources?: MessageSource[]; actions?: MessageAction[]; status?: string; streaming?: boolean; onSources?: () => void }) {
+function SourceList({ sources }: { sources: MessageSource[] }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div className="flex flex-col gap-1">
+      <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen(o => !o)}
+        className="font-label flex min-h-8 items-center gap-1 self-start text-sm leading-[18px] text-text-secondary hover:underline cursor-pointer">
+        FONTES · DE ONDE VEIO ISTO
+        <svg aria-hidden width={14} height={14} viewBox="0 0 20 20" className={`transition-transform ${open ? "rotate-180" : ""}`}><path d="M5 7.5l5 5 5-5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
+      </button>
+      {open && (
+        <ul id={id} aria-label="Fontes desta resposta" className="flex flex-col gap-0.5">
+          {sources.map(src => (
+            <li key={src.key} className="text-xs leading-[18px] text-text-secondary">
+              {src.href ? <Link href={src.href} className="hover:underline">{src.label}</Link> : src.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Resposta do Bobby, sem balão, na largura toda. Enquanto chega, o autor mostra o status e o texto termina com "▍" (B2);
+ * fontes e ações vêm com o `done`.
+ */
+export function AssistantMessage({ content, sources, actions, status, streaming }: { content: string; sources?: MessageSource[]; actions?: MessageAction[]; status?: string; streaming?: boolean }) {
   return (
     <div className="flex flex-col gap-[18px]">
       <BobbyAuthor status={status} />
       <div aria-live={streaming ? "off" : "polite"} aria-busy={streaming || undefined}><Markdown text={streaming ? `${content}▍` : content} /></div>
-      {!!sources?.length && (
-        <div className="flex flex-col gap-1.5">
-          <button type="button" onClick={onSources} className="font-label self-start text-sm leading-[18px] text-text-secondary hover:underline cursor-pointer">FONTES · DE ONDE VEIO ISTO</button>
-          <div className="flex flex-wrap gap-1.5">
-            {sources.map(src => (
-              <button key={src.key} type="button" onClick={onSources} aria-label={`Fonte: ${src.label}. Ver detalhes`}
-                className="flex min-h-9 items-center rounded-full border px-3 text-[13px] leading-[18px] text-display hover:opacity-80 cursor-pointer"
-                style={{ background: SOURCE_COLOR[src.tone], borderColor: src.tone === "other" ? "var(--color-stroke)" : SOURCE_COLOR[src.tone] }}>{src.label}</button>
-            ))}
-          </div>
-        </div>
-      )}
+      {!!sources?.length && <SourceList sources={sources} />}
       {!!actions?.length && (
         <div className="flex gap-0.5">
           {actions.map(a => (

@@ -270,10 +270,10 @@ function Bobby() {
       onError: e => { setConfirmDelete(null); setManageError(rejectionMessage(e) ?? "Não foi possível apagar a conversa."); void conversations.refetch(); },
     });
   }
-  /** B3: um registro abre a própria tela (diário ou leitura do ambiente); guias e fotos só aparecem. Chips iguais aparecem uma vez. */
+  /** B3: só registros (os guias da base de conhecimento não aparecem, pedido do usuário em 2026-11-01); um registro abre a própria tela (diário ou leitura do ambiente). Iguais aparecem uma vez. */
   function chips(sources?: ChatSource[]): MessageSource[] {
     const seen = new Set<string>();
-    return (sources ?? []).filter(src => !seen.has(sourceChip(src).label) && !!seen.add(sourceChip(src).label)).map(src => {
+    return (sources ?? []).filter(src => src.kind !== "knowledge").filter(src => !seen.has(sourceChip(src).label) && !!seen.add(sourceChip(src).label)).map(src => {
       const chip = sourceChip(src), t = chip.target;
       return { key: `${src.kind}:${src.id}`, label: chip.label, tone: chip.tone, kind: src.kind, title: src.title, date: src.date,
         href: t?.kind === "event" ? routes.diaryEntry(t.plantId, t.eventId) : t?.kind === "reading" ? routes.growReading(t.growId, t.readingId) ?? undefined : undefined };
@@ -392,7 +392,7 @@ function Bobby() {
               : <>
                 {messages.map((m, i) => m.role === "user"
                   ? <UserMessage key={`m${i}`} message={m} />
-                  : <AssistantMessage key={`m${i}`} content={m.content} sources={chips(m.sources)} actions={actions(m, i === lastAnswer && i === messages.length - 1)} onSources={() => setSourcesView({ sources: chips(m.sources) })} />)}
+                  : <AssistantMessage key={`m${i}`} content={m.content} sources={chips(m.sources)} actions={actions(m, i === lastAnswer && i === messages.length - 1)} />)}
                 {pending && <div key="pending">{renderPending(pending)}</div>}
               </>}
           </div>
