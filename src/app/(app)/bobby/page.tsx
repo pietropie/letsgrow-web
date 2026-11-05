@@ -17,7 +17,7 @@ import { useKeyboardInset } from "@/lib/viewport";
 import { phases } from "@/shared/constants/theme";
 import { creditErrorCode } from "@/shared/lib/accountFeatures";
 import { composerFooter, greeting, groupConversations, quoteCard, starterSuggestions, type Suggestion } from "@/shared/lib/bobbyChat";
-import { ChatCancelled, FEEDBACK_REASONS, StreamFailed, savedRatings, sourceChip, type ChatResult, type ChatSource, type FeedbackReason, type SavedRating } from "@/shared/lib/chatStream";
+import { ChatCancelled, FEEDBACK_REASONS, answerSources, StreamFailed, savedRatings, sourceChip, type ChatResult, type ChatSource, type FeedbackReason, type SavedRating } from "@/shared/lib/chatStream";
 import { planLimitMessage, rejectionMessage } from "@/shared/lib/errors";
 import { phaseDay } from "@/shared/lib/phaseDay";
 import { plantDisplayName } from "@/shared/lib/plantIdentity";
@@ -272,8 +272,7 @@ function Bobby() {
   }
   /** B3: só registros (os guias da base de conhecimento não aparecem, pedido do usuário em 2026-11-01); um registro abre a própria tela (diário ou leitura do ambiente). Iguais aparecem uma vez. */
   function chips(sources?: ChatSource[]): MessageSource[] {
-    const seen = new Set<string>();
-    return (sources ?? []).filter(src => src.kind !== "knowledge").filter(src => !seen.has(sourceChip(src).label) && !!seen.add(sourceChip(src).label)).map(src => {
+    return answerSources(sources).map(src => {
       const chip = sourceChip(src), t = chip.target;
       return { key: `${src.kind}:${src.id}`, label: chip.label, tone: chip.tone, kind: src.kind, title: src.title, date: src.date,
         href: t?.kind === "event" ? routes.diaryEntry(t.plantId, t.eventId) : t?.kind === "reading" ? routes.growReading(t.growId, t.readingId) ?? undefined : undefined };

@@ -17,9 +17,8 @@ test('weather card state by HTTP status', () => {
 })
 
 test('outdoor line hides the range without max and min', () => {
-  assert.equal(h.outdoorLine({ temp_max: 33.4, temp_min: 18.6, humidity: 45 }), 'máx 33° · mín 19° · umidade 45%')
-  assert.equal(h.outdoorLine({ temp_max: null, temp_min: null, humidity: 45 }), 'umidade 45%')
-  assert.equal(h.outdoorLine({ humidity: 44.6 }), 'umidade 45%')
+  assert.equal(h.outdoorLine({ temp_max: 33.4, temp_min: 18.6, humidity: 45 }), 'máx 33° · mín 19°')
+  assert.equal(h.outdoorLine({ temp_max: null, temp_min: null, humidity: 45 }), '')
 })
 
 test('outside × inside comparison, only facts and only with both sides', () => {

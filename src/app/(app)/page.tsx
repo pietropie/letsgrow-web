@@ -139,7 +139,7 @@ export default function HomePage() {
         <div className="flex flex-col gap-[14px] md:gap-5">
           <ClimateCard
             state={state} growName={grow.name} outdoor={outdoor} place={place}
-            weather={w ? { t: whole(w.temperature), icon: weatherIcon(w), condition: w.weather_description, line: outdoorLine(w) } : null}
+            weather={w ? { t: whole(w.temperature), rh: whole(w.humidity), icon: weatherIcon(w), condition: w.weather_description, line: outdoorLine(w) } : null}
             inside={{ t: temperature.value, rh: humidity.value, tag: insideTag }}
             compare={w && !outdoor ? compareClimate({ t: w.temperature, rh: w.humidity }, { t: temperature.value, rh: humidity.value }) : null}
             tip={tip ? { title: tip.title, text: tip.body, basis: tipBasis(tip.sources) } : null}

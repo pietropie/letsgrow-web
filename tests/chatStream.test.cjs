@@ -3,7 +3,7 @@
 process.env.TZ = 'America/Sao_Paulo'
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const { createSseParser, createUtf8Decoder, readChatStream, sendChat, feedbackBody, offensiveFallback, sourceChip, FEEDBACK_REASONS, savedRatings,
+const { createSseParser, createUtf8Decoder, readChatStream, sendChat, feedbackBody, offensiveFallback, answerSources, sourceChip, FEEDBACK_REASONS, savedRatings,
   StreamUnavailable, StreamFailed, ChatCancelled } = require('../src/shared/lib/chatStream.ts')
 
 const enc = new TextEncoder()
@@ -120,4 +120,13 @@ test('saved ratings come back with the conversation, with or without feedback', 
   })
   // Older backend: no feedback field at all.
   assert.deepEqual(savedRatings([{ id: 'a1', role: 'assistant', content: 'b' }]), {})
+})
+
+test('answer sources: knowledge excerpts are left out, repeated records show once', () => {
+  const ev = { kind: 'event', id: 'e1', title: 'Rega · 25 ml', date: '2026-10-19', scope: 'focus', plant_id: 'p1' }
+  const kn = { kind: 'knowledge', id: 'k1', title: 'Guia · pH e absorção', date: null, scope: 'knowledge' }
+  const out = answerSources([kn, ev, { ...ev, id: 'e2' }, { kind: 'photo', id: 'inline-0', title: 'Foto enviada', date: null, scope: 'message' }])
+  assert.deepEqual(out.map(s => s.id), ['e1', 'inline-0'])
+  assert.deepEqual(answerSources([kn]), [])
+  assert.deepEqual(answerSources(undefined), [])
 })

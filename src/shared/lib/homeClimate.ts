@@ -57,10 +57,12 @@ export function weatherCard(result: { pending?: boolean; data?: unknown; status?
 /** Whole degrees and points, as the Figma draws them ("31°", "45%"). */
 export const whole = (v: number) => Math.round(v)
 
-/** "máx 33° · mín 19° · umidade 45%"; without the day's range only the humidity (H1). */
-export function outdoorLine(w: Pick<Weather, 'temp_max' | 'temp_min' | 'humidity'>): string {
-  const range = w.temp_max != null && w.temp_min != null ? [`máx ${whole(w.temp_max)}°`, `mín ${whole(w.temp_min)}°`] : []
-  return [...range, `umidade ${whole(w.humidity)}%`].join(' · ')
+/**
+ * "máx 33° · mín 19°"; empty without the day's range. The humidity left this line (user's request of 2026-11-01):
+ * it shows in its own display, next to the temperature.
+ */
+export function outdoorLine(w: Pick<Weather, 'temp_max' | 'temp_min'>): string {
+  return w.temp_max != null && w.temp_min != null ? `máx ${whole(w.temp_max)}° · mín ${whole(w.temp_min)}°` : ''
 }
 
 export type CompareRow = { text: string; tag: string; tone: 'cooler' | 'warmer' | 'same' | 'more' | 'less' }

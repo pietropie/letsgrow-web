@@ -43,10 +43,10 @@ function SmallButton({ label, onClick, secondary }: { label: string; onClick: ()
 }
 
 /** Mostrador de segmentos (components/data/SegmentedDisplay do mobile). */
-export function SegmentedDisplay({ value, unit, size = "large", label }: { value?: number | null; unit: string; size?: "large" | "small"; label?: string }) {
+export function SegmentedDisplay({ value, unit, size = "large", label, spoken: said }: { value?: number | null; unit: string; size?: "large" | "small"; label?: string; spoken?: string }) {
   const formatted = formatMeasurementValue(value);
   const large = size === "large";
-  const spoken = `${label ? `${label}: ` : ""}${formatted === "—" ? "não informado" : `${formatted} ${unit}`}`;
+  const spoken = said ?? `${label ? `${label}: ` : ""}${formatted === "—" ? "não informado" : `${formatted} ${unit}`}`;
   return (
     <span role="img" aria-label={spoken} className="inline-flex max-w-full gap-0.5 self-start rounded-[10px] border border-display p-0.5">
       {[...formatted, unit].map((digit, i) => (
@@ -76,10 +76,25 @@ export function HomeGreeting({ name, date, grow, onPickGrow }: { name: string | 
 }
 
 type Inside = { t: number | null; rh: number | null; tag: string | null };
+/**
+ * Um mostrador com o nome em cima, no rótulo dos blocos do painel (pedido do usuário em 2026-11-01: dois mostradores
+ * soltos confundiam). Lido numa frase só, "Temperatura lá fora 22 graus"; o rótulo visual fica fora do leitor de tela.
+ */
+function Gauge({ kind, where, value, size }: { kind: "t" | "rh"; where: "lá fora" | "dentro"; value: number | null; size?: "small" }) {
+  const name = kind === "t" ? "Temperatura" : "Umidade do ar";
+  const amount = value == null ? "não informado" : `${value} ${kind === "t" ? "graus" : "por cento"}`;
+  return (
+    <span className="flex flex-col gap-1">
+      <span aria-hidden className="font-label text-[13px] leading-4 text-text-secondary">{name.toUpperCase()}</span>
+      <SegmentedDisplay size={size} value={value} unit={kind === "t" ? "°" : "%"} spoken={`${name} ${where} ${amount}`} />
+    </span>
+  );
+}
+
 export type ClimateProps = {
   state: "loading" | "ok" | "no_location" | "unavailable" | "not_found";
   growName: string; outdoor: boolean; place: string | null;
-  weather?: { t: number; icon: "day" | "night" | null; condition: string; line: string } | null;
+  weather?: { t: number; rh: number | null; icon: "day" | "night" | null; condition: string; line: string } | null;
   inside: Inside;
   compare: { temperature: CompareRow | null; humidity: CompareRow | null } | null;
   tip?: { title: string; text: string; basis: string } | null;
@@ -116,8 +131,8 @@ export function ClimateCard(p: ClimateProps) {
   const hasInside = p.inside.t != null || p.inside.rh != null;
   const insideDisplays = (
     <>
-      <SegmentedDisplay size="small" unit="°" value={p.inside.t == null ? null : Math.round(p.inside.t)} label="Temperatura dentro" />
-      <SegmentedDisplay size="small" unit="%" value={p.inside.rh == null ? null : Math.round(p.inside.rh)} label="Umidade dentro" />
+      <Gauge size="small" kind="t" where="dentro" value={p.inside.t == null ? null : Math.round(p.inside.t)} />
+      <Gauge size="small" kind="rh" where="dentro" value={p.inside.rh == null ? null : Math.round(p.inside.rh)} />
       {!!p.inside.tag && <Tag tone="calm" label={p.inside.tag} />}
     </>
   );
@@ -151,12 +166,17 @@ export function ClimateCard(p: ClimateProps) {
       <div className="flex gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <p className={label}>LÁ FORA</p>
-          <div className="flex items-center gap-2">
-            {w.icon === "day" ? <img src="/figma/weather-partly-cloudy-day.svg" alt="" /> : w.icon === "night" ? <img src="/figma/moon-small.svg" alt="" width={28} height={28} className="m-1.5" /> : null}
-            <SegmentedDisplay value={w.t} unit="°" label="Temperatura lá fora" />
+          {/* Alinhados pela base; sem largura, a umidade desce para a linha de baixo com o próprio rótulo. */}
+          <div className="flex flex-wrap items-end gap-x-2 gap-y-2">
+            <span className="flex items-end gap-2">
+              {w.icon === "day" ? <img src="/figma/weather-partly-cloudy-day.svg" alt="" /> : w.icon === "night" ? <img src="/figma/moon-small.svg" alt="" width={28} height={28} className="m-1.5" /> : null}
+              <Gauge kind="t" where="lá fora" value={w.t} />
+            </span>
+            {/* Pedido do usuário (2026-11-01): a umidade no mesmo mostrador da temperatura, com %. */}
+            {w.rh != null && <Gauge kind="rh" where="lá fora" value={w.rh} />}
           </div>
           <p className="text-sm leading-[18px] font-semibold text-text-primary">{w.condition}</p>
-          <p className="text-[13px] leading-[18px] text-text-secondary">{w.line}</p>
+          {!!w.line && <p className="text-[13px] leading-[18px] text-text-secondary">{w.line}</p>}
         </div>
         {!p.outdoor && hasInside && (
           <>

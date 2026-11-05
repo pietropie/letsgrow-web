@@ -222,6 +222,15 @@ export function sourceChip(src: ChatSource): { label: string; tone: SourceTone; 
   return { label, tone, target }
 }
 
+/**
+ * Sources shown under an answer: only the person's records and photos. Knowledge-base excerpts ("Guia · …") are left
+ * out (user's request of 2026-10-31); repeated labels show once.
+ */
+export function answerSources(sources: ChatSource[] | undefined): ChatSource[] {
+  const seen = new Set<string>()
+  return (sources ?? []).filter(src => src.kind !== 'knowledge' && !seen.has(sourceChip(src).label) && !!seen.add(sourceChip(src).label))
+}
+
 export type SavedRating = { rating: 'up' | 'down'; reason: FeedbackReason | null }
 const REASONS: FeedbackReason[] = ['wrong_record', 'missing_context', 'not_helpful', 'offensive', 'other']
 /**
