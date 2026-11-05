@@ -2,8 +2,11 @@
 
 import { AccountBack, PLAN_NAMES } from "@/components/account";
 import { ActionRow, Button, Notice, PageSubtitle, PageTitle, Spinner } from "@/components/ui";
+import { UsageError, UsageMeter } from "@/components/usage";
+import { useBillingCatalog, useCreditPackages } from "@/lib/account";
 import { useCreditBalance } from "@/lib/bobby";
 import { usePlanStatus } from "@/lib/hooks";
+import { useUsage } from "@/lib/usage-client";
 import { routes } from "@/lib/routes";
 import { shortDayMonth } from "@/shared/lib/dates";
 
@@ -14,6 +17,10 @@ import { shortDayMonth } from "@/shared/lib/dates";
 export default function CreditsPage() {
   const balance = useCreditBalance();
   const plan = usePlanStatus();
+  const usage = useUsage();
+  // "Comprar créditos" só aparece com pacote à venda na web.
+  const catalog = useBillingCatalog(), packages = useCreditPackages();
+  const packs = !!catalog.data?.web_enabled && !!packages.data?.length;
 
   function summary() {
     const b = balance.data!, p = plan.data!;
@@ -37,9 +44,12 @@ export default function CreditsPage() {
   return (
     <>
       <AccountBack />
-      <PageTitle>Seus créditos</PageTitle>
-      <PageSubtitle>Saldo e uso em um só lugar</PageSubtitle>
-      {balance.isPending || plan.isPending ? <Spinner />
+      <PageTitle>Créditos e plano</PageTitle>
+      <PageSubtitle>Uso do Bobby e saldo em um só lugar</PageSubtitle>
+      {/* UX item 16 (W24): o mostrador completo no lugar do resumo, quando o GET /usage estiver ligado. */}
+      {usage.status === "ok" ? <UsageMeter usage={usage.usage} packs={packs} />
+        : usage.status === "error" ? <UsageError onRetry={usage.retry} />
+        : usage.status === "loading" || balance.isPending || plan.isPending ? <Spinner />
         : !balance.data || !plan.data ? <Button secondary label="Não foi possível carregar. Tentar novamente" onClick={() => { void balance.refetch(); void plan.refetch(); }} />
         : summary()}
       <ActionRow title="O que é incluído?" body="Registros, histórico e resumo automático básico." href={routes.creditHelp()} />

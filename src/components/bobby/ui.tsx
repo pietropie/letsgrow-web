@@ -157,10 +157,12 @@ export type ComposerFooterView = { text: string; error?: boolean; link?: { label
  * Composer (Figma 2351:15226): chip do contexto, a caixa de raio 24 com "+", o texto, as miniaturas das fotos e o botão
  * redondo de enviar (cinza vazio); durante a resposta vira "parar" (B2). Enter envia; Shift+Enter quebra a linha.
  */
-export function Composer({ value, onChange, onSend, onStop, onAttach, contextLabel, contextIcon, onContext, photos, onRemovePhoto, footer, placeholder, paused, sending, notice }: {
+export function Composer({ value, onChange, onSend, onStop, onAttach, contextLabel, contextIcon, onContext, photos, onRemovePhoto, footer, placeholder, paused, sending, notice, usage }: {
   value: string; onChange: (v: string) => void; onSend: () => void; onStop?: () => void; onAttach: () => void;
   contextLabel: string; contextIcon: string; onContext: () => void; photos: string[]; onRemovePhoto: (i: number) => void;
   footer: ComposerFooterView; placeholder: string; paused?: boolean; sending?: boolean; notice?: ReactNode;
+  /** M1: no celular, o mostrador compacto toma o lugar da linha de uso; no desktop ele fica no topo da conversa (W23). */
+  usage?: ReactNode;
 }) {
   const input = useRef<HTMLTextAreaElement>(null);
   const canSend = !!value.trim() && !paused && !sending;
@@ -197,7 +199,8 @@ export function Composer({ value, onChange, onSend, onStop, onAttach, contextLab
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full cursor-pointer ${canSend ? "bg-primary" : "bg-stroke-soft"}`}><img src="/figma/send-arrow.svg" alt="" /></button>}
         </div>
       </div>
-      <p className={`text-center text-xs leading-4 ${footer.error ? "text-state-error" : "text-text-secondary"}`}>
+      {usage && <div className="md:hidden">{usage}</div>}
+      <p className={`text-center text-xs leading-4 ${footer.error ? "text-state-error" : "text-text-secondary"} ${usage ? "hidden md:block" : ""}`}>
         {footer.text}{footer.link && <> · <Link href={footer.link.href} className="underline">{footer.link.label}</Link></>}
       </p>
     </div>

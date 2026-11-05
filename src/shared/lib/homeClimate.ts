@@ -90,11 +90,13 @@ export function compareClimate(out: { t: number; rh: number }, inside: { t: numb
 const SOURCE_TEXT: Record<string, string> = { manual: 'registro manual', sensor: 'sensor' }
 /**
  * The line under the block (H1, H3). With the Bobby tip the rule is named; without it, where each side comes from:
- * "Lá fora: Open-Meteo · 12:30. Dentro: registro manual · 12:17. A comparação não liga nem regula equipamentos."
+ * "Lá fora: atualizado às 12:30. Dentro: registro manual · 12:17. A comparação não liga nem regula equipamentos."
+ * No provider name (user's request of 2026-11-05): the Open-Meteo credit (CC BY 4.0) is in the Terms, "Fontes de dados".
  */
 export function climateFooter(opts: { fetchedAt?: string | null; inside?: { source?: string | null; observedAt?: string | null } | null; tip: boolean; now?: Date }): string {
   if (opts.tip) return 'A dica é uma regra do Bobby com os dados acima. Não liga nem regula equipamentos.'
-  const out = ['Lá fora: Open-Meteo', stamp(opts.fetchedAt, opts.now)].filter(Boolean).join(' · ')
+  const at = stamp(opts.fetchedAt, opts.now)
+  const out = at ? `Lá fora: atualizado ${at.includes(':') ? 'às' : 'em'} ${at}` : 'Lá fora: clima do local'
   const src = opts.inside?.source ? SOURCE_TEXT[opts.inside.source] ?? opts.inside.source : null
   const inside = src ? ['Dentro: ' + src, stamp(opts.inside?.observedAt, opts.now)].filter(Boolean).join(' · ') + '. ' : ''
   return `${out}. ${inside}A comparação não liga nem regula equipamentos.`
@@ -114,7 +116,7 @@ export function weatherIcon(w: Pick<Weather, 'is_day' | 'weather_code'>): 'day' 
 
 // ── Precisa de atenção ───────────────────────────────────────────────────────────────────────────────────────────
 
-export type AttentionItem = { key: string; title: string; tag: 'AMBIENTE' | 'REGA' | 'BOBBY'; meta: string; target: { kind: 'grow' | 'diary' | 'observation'; id: string } }
+export type AttentionItem = { key: string; title: string; tag: 'AMBIENTE' | 'REGA' | 'BOBBY'; meta: string; target: { kind: 'grow' | 'diary' | 'observation' | 'usage'; id: string } }
 type Reading = { value: number | null; source?: string | null; observed_at?: string | null }
 type Alert = { alert_id: string; plant_id: string; plant_name: string; action?: string; message: string; tier: string; evidence?: unknown[] }
 
@@ -133,6 +135,8 @@ export function attentionItems(input: {
   growId: string; growName: string
   temperature: Reading; humidity: Reading; targetTemp?: number | null; targetRh?: number | null
   alerts: Alert[]; lastWatering?: Record<string, string | null | undefined>; now?: Date
+  /** Bobby near the end or out (UX item 16, M4), from usageAttention: after the environment, before the alerts. */
+  usage?: { title: string; meta: string } | null
 }): { items: AttentionItem[]; total: number } {
   const now = input.now ?? new Date()
   const fresh = (r: Reading) => r.value != null && !!r.observed_at && now.getTime() - new Date(r.observed_at).getTime() <= STALE_MS
@@ -149,6 +153,7 @@ export function attentionItems(input: {
   }
   reading('temperature', input.temperature, input.targetTemp, TEMP_MARGIN, ' °C', 'Temperatura')
   reading('humidity', input.humidity, input.targetRh, RH_MARGIN, ' %', 'Umidade')
+  if (input.usage) out.push({ key: 'usage', tag: 'BOBBY', title: input.usage.title, meta: input.usage.meta, target: { kind: 'usage', id: 'usage' } })
   const alerts = [...input.alerts].sort((a, b) => (TIER_ORDER[a.tier] ?? 9) - (TIER_ORDER[b.tier] ?? 9))
   for (const a of alerts) {
     if ((a.action === 'temperature' || a.action === 'humidity') && raised.has(a.action)) continue

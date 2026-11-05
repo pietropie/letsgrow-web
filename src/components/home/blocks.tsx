@@ -49,7 +49,7 @@ export function SegmentedDisplay({ value, unit, size = "large", label, spoken: s
   const spoken = said ?? `${label ? `${label}: ` : ""}${formatted === "—" ? "não informado" : `${formatted} ${unit}`}`;
   return (
     <span role="img" aria-label={spoken} className="inline-flex max-w-full gap-0.5 self-start rounded-[10px] border border-display p-0.5">
-      {[...formatted, unit].map((digit, i) => (
+      {[...formatted, unit].filter(Boolean).map((digit, i) => (
         <span key={i} className={`flex items-center justify-center rounded-lg bg-display px-1 font-black text-surface tabular-nums ${large ? "min-w-10 py-2 text-[40px] leading-8" : "min-w-7 py-1 text-[22px] leading-7"}`}>{digit}</span>
       ))}
     </span>

@@ -3,9 +3,10 @@
 /* eslint-disable @next/next/no-img-element */
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AssistantMessage, BobbyWelcome, Composer, ContextPanel, ConversationList, FeedbackPanel, InlineCard, ManageConversationPanel, MessageBubble, ThinkingMessage, type DrawerConversation, type MessageAction, type MessageSource } from "@/components/bobby/ui";
 import { SourcesPanel } from "@/components/bobby/sources-panel";
+import { UsageCompact } from "@/components/usage";
 import { ConfirmDialog, Spinner } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { askBobby, getConversation, getPhotoUrl, rateAnswer, regenerateAnswer, requestQuote, useConversations, useCreditBalance, useDeleteConversation, useRenameConversation, type ChatBody } from "@/lib/bobby";
@@ -13,6 +14,7 @@ import { useBobAlerts, useGrows, usePlanStatus, usePlantSummaries, usePlants } f
 import { uploadEventPhotos } from "@/lib/photos";
 import { routes } from "@/lib/routes";
 import { useMe } from "@/lib/session-client";
+import { useUsage } from "@/lib/usage-client";
 import { useKeyboardInset } from "@/lib/viewport";
 import { phases } from "@/shared/constants/theme";
 import { creditErrorCode } from "@/shared/lib/accountFeatures";
@@ -105,6 +107,9 @@ function Bobby() {
   // Muda com uma conversa nova ou aberta: uma resposta atrasada da anterior não entra na tela.
   const session = useRef(0);
   const keyboard = useKeyboardInset();
+  const usageMeter = useUsage();
+  // A saudação depende do nome e da hora do aparelho: só depois de montar, para o HTML do servidor bater com o do navegador.
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
 
   const me = useMe();
   const balance = useCreditBalance().data;
@@ -346,6 +351,9 @@ function Bobby() {
     : files.length ? { text: `${files.length} de ${MAX_PHOTOS} fotos${balance?.enabled ? " · a análise de fotos pode usar créditos" : ""}` }
     : { text: footer.text, error: footer.limitReached, link: footer.link === "limit" && routes.credits() ? { label: "Ver meu limite", href: routes.credits()! } : null };
 
+  // Mostrador compacto (UX item 16): só enquanto a linha de baixo mostraria o uso, não um aviso do momento.
+  const pill = usageMeter.status === "ok" && !stoppable && !rateError && !files.length ? <UsageCompact usage={usageMeter.usage} /> : null;
+
   function renderPending(p: Pending) {
     if (p.kind === "thinking") return <ThinkingMessage status={p.status} />;
     if (p.kind === "streaming") return <AssistantMessage content={p.text} status={p.status} streaming />;
@@ -378,6 +386,7 @@ function Bobby() {
           <h1 className="font-label flex-1 truncate text-center text-base text-display md:text-left md:font-sans md:text-lg md:font-semibold md:text-text-primary">
             <span className="md:hidden">BOBBY</span><span className="hidden md:inline">{currentTitle}</span>
           </h1>
+          {pill && <div className="hidden md:block">{pill}</div>}
           {current && <button type="button" onClick={() => { setManageError(null); setManage(current); }} className="hidden min-h-10 rounded-lg px-3 text-sm font-semibold text-text-primary hover:bg-surface md:block cursor-pointer">Renomear ou apagar</button>}
           <button type="button" aria-label="Nova conversa" onClick={newConversation} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-surface cursor-pointer"><img src="/figma/new-chat.svg" alt="" /></button>
         </div>
@@ -387,7 +396,7 @@ function Bobby() {
             {opening ? (opening.failed
               ? <InlineCard tone="error" title="Não foi possível abrir a conversa" body="Ela continua guardada na sua conta." primary={{ label: "Tentar de novo", onClick: () => void openConversation(opening.id) }} secondary={{ label: "Nova conversa", onClick: newConversation }} />
               : <Spinner />)
-              : !messages.length && !pending ? <BobbyWelcome greeting={greeting(me.data?.full_name, new Date().getHours())} suggestions={suggestions} onSuggestion={pickSuggestion} />
+              : !messages.length && !pending ? <BobbyWelcome greeting={mounted ? greeting(me.data?.full_name, new Date().getHours()) : ""} suggestions={suggestions} onSuggestion={pickSuggestion} />
               : <>
                 {messages.map((m, i) => m.role === "user"
                   ? <UserMessage key={`m${i}`} message={m} />
@@ -406,7 +415,7 @@ function Bobby() {
               body={limitNotice && !paused ? limitNotice : `Seu histórico continua aberto.${footer.renews ? ` O limite renova em ${footer.renews}.` : ""}`}
               primary={routes.plans() ? { label: "Ver planos", href: routes.plans()! } : undefined} secondary={{ label: "Entendi", onClick: () => { setLimitDismissed(true); setLimitNotice(null); } }} />}
             contextLabel={contextLabel} contextIcon={plant ? "chip-leaf" : grow ? "context-grow" : "context-all"} onContext={() => setPanel("context")}
-            photos={previews} onRemovePhoto={i => setFiles(f => f.filter((_, j) => j !== i))} footer={footerView}
+            photos={previews} onRemovePhoto={i => setFiles(f => f.filter((_, j) => j !== i))} footer={footerView} usage={pill}
             placeholder={paused ? (footer.renews ? `Envio pausado até ${footer.renews}` : "Envio pausado") : messages.length ? "Pergunte mais" : "Pergunte ao Bobby"}
             paused={paused} sending={busy} />
           {/* B5: no iPhone o seletor oferece câmera e fototeca; até 4 fotos por mensagem. */}

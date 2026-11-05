@@ -34,8 +34,9 @@ test('outside × inside comparison, only facts and only with both sides', () => 
 
 test('footer and tip basis', () => {
   assert.equal(h.climateFooter({ fetchedAt: at(12, 30), inside: { source: 'manual', observedAt: at(12, 17) }, tip: false, now }),
-    'Lá fora: Open-Meteo · 12:30. Dentro: registro manual · 12:17. A comparação não liga nem regula equipamentos.')
-  assert.equal(h.climateFooter({ fetchedAt: at(12, 30), inside: null, tip: false, now }), 'Lá fora: Open-Meteo · 12:30. A comparação não liga nem regula equipamentos.')
+    'Lá fora: atualizado às 12:30. Dentro: registro manual · 12:17. A comparação não liga nem regula equipamentos.')
+  assert.equal(h.climateFooter({ fetchedAt: at(12, 30), inside: null, tip: false, now }), 'Lá fora: atualizado às 12:30. A comparação não liga nem regula equipamentos.')
+  assert.equal(h.climateFooter({ fetchedAt: at(9, 0, 26), inside: null, tip: false, now }), 'Lá fora: atualizado em 26 out. A comparação não liga nem regula equipamentos.')
   assert.equal(h.climateFooter({ tip: true }), 'A dica é uma regra do Bobby com os dados acima. Não liga nem regula equipamentos.')
   assert.equal(h.tipBasis([{ kind: 'weather', title: 'Open-Meteo · Campinas, SP', date: at(12, 30) }, { kind: 'environment_reading', title: 'Registro do ambiente · 60%', date: at(12, 17) }], now),
     'Com base em: Open-Meteo · Campinas, SP às 12:30 · Registro do ambiente · 60% às 12:17')
@@ -117,4 +118,12 @@ test('tip basis with the published source kinds (target, plant, light schedule)'
     { kind: 'plant', title: 'Fase · Vegetativa', date: null },
     { kind: 'light_schedule', title: 'Programação de luz · 06:00 → 00:00' },
   ], now), 'Com base em: Open-Meteo · Campinas, SP às 12:30 · Sensor · 60% às 12:20 · Faixa definida · 55% · Fase · Vegetativa · Programação de luz · 06:00 → 00:00')
+})
+
+test('attention: the Bobby usage item comes after the environment and before the alerts (UX item 16, M4)', () => {
+  const r = h.attentionItems({ growId: 'g', growName: 'Sala', temperature: { value: 30, observed_at: at(12, 0), source: 'manual' }, humidity: { value: null },
+    targetTemp: 24, alerts: [{ alert_id: 'a1', plant_id: 'p', plant_name: 'Aurora', action: 'watering', message: 'Regar', tier: 'today' }],
+    usage: { title: 'Bobby perto do limite', meta: '27 de 30 consultas · renova 1 nov' }, now })
+  assert.deepEqual(r.items.map(i => i.key), ['range-temperature', 'usage', 'a1'])
+  assert.deepEqual(r.items[1].target, { kind: 'usage', id: 'usage' })
 })

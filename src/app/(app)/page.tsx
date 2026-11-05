@@ -5,6 +5,8 @@ import { useState, useSyncExternalStore } from "react";
 import { AttentionCard, BobbyBrief, ClimateCard, EnvironmentMini, HomeGreeting, HomePlantCard, SectionHeader, SkeletonCard } from "@/components/home/blocks";
 import { GrowPicker, GrowPlaceFlow, type PlaceMode } from "@/components/home/place-flow";
 import { InstallBanner } from "@/components/install-banner";
+import { usageNotice } from "@/lib/usage";
+import { useUsage } from "@/lib/usage-client";
 import { ActionRow, Button, ButtonLink, Notice, PageSubtitle, PageTitle } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
 import { useActivePlants, useBobAlerts, useDailyBrief, useGrow, useGrows, useMinuteOfDay, usePlanStatus, usePlantSummaries, useRememberedGrow } from "@/lib/hooks";
@@ -32,6 +34,8 @@ const noSubscribe = () => () => {};
  */
 export default function HomePage() {
   const me = useMe();
+  const usageMeter = useUsage();
+  const notice = usageMeter.status === "ok" ? usageNotice(usageMeter.usage) : null;
   const planStatus = usePlanStatus();
   const grows = useGrows();
   const alerts = useBobAlerts();
@@ -112,9 +116,11 @@ export default function HomePage() {
     growId: grow.id, growName: grow.name, temperature, humidity, targetTemp: detail?.target_temp_c, targetRh: detail?.target_humidity_rh,
     alerts: (alerts.data?.alerts ?? []).filter(a => plantIds.has(a.plant_id)),
     lastWatering: Object.fromEntries(growPlants.map(p => [p.id, summaries.data?.[p.id]?.last_watering_at])),
+    usage: notice,
   });
   const attentionHref = (item: AttentionItem) =>
-    item.target.kind === "grow" ? routes.growPanel(item.target.id) : item.target.kind === "diary" ? routes.plantDiary(item.target.id) : routes.bobbyObservation(item.target.id);
+    item.target.kind === "grow" ? routes.growPanel(item.target.id) : item.target.kind === "diary" ? routes.plantDiary(item.target.id)
+      : item.target.kind === "usage" ? routes.credits() : routes.bobbyObservation(item.target.id);
 
   const schedule = scheduleFromGrow(detail ?? grow);
   const progress = dialProgress(schedule.onAt, schedule.light, minute);
