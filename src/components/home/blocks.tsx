@@ -43,14 +43,20 @@ function SmallButton({ label, onClick, secondary }: { label: string; onClick: ()
 }
 
 /** Mostrador de segmentos (components/data/SegmentedDisplay do mobile). */
-export function SegmentedDisplay({ value, unit, size = "large", label, spoken: said }: { value?: number | null; unit: string; size?: "large" | "small"; label?: string; spoken?: string }) {
+const DIGIT_SIZE = {
+  large: "min-w-10 py-2 text-[40px] leading-8",
+  small: "min-w-7 py-1 text-[22px] leading-7",
+  // Grande quando o contêiner (@container) tem 18,5 rem ou mais; abaixo disso, pequeno, para dois mostradores caberem lado a lado.
+  auto: "min-w-7 py-1 text-[22px] leading-7 @[18.5rem]:min-w-10 @[18.5rem]:py-2 @[18.5rem]:text-[40px] @[18.5rem]:leading-8",
+};
+
+export function SegmentedDisplay({ value, unit, size = "large", label, spoken: said }: { value?: number | null; unit: string; size?: "large" | "small" | "auto"; label?: string; spoken?: string }) {
   const formatted = formatMeasurementValue(value);
-  const large = size === "large";
   const spoken = said ?? `${label ? `${label}: ` : ""}${formatted === "—" ? "não informado" : `${formatted} ${unit}`}`;
   return (
     <span role="img" aria-label={spoken} className="inline-flex max-w-full gap-0.5 self-start rounded-[10px] border border-display p-0.5">
       {[...formatted, unit].filter(Boolean).map((digit, i) => (
-        <span key={i} className={`flex items-center justify-center rounded-lg bg-display px-1 font-black text-surface tabular-nums ${large ? "min-w-10 py-2 text-[40px] leading-8" : "min-w-7 py-1 text-[22px] leading-7"}`}>{digit}</span>
+        <span key={i} className={`flex items-center justify-center rounded-lg bg-display px-1 font-black text-surface tabular-nums ${DIGIT_SIZE[size]}`}>{digit}</span>
       ))}
     </span>
   );
@@ -80,7 +86,7 @@ type Inside = { t: number | null; rh: number | null; tag: string | null };
  * Um mostrador com o nome em cima, no rótulo dos blocos do painel (pedido do usuário em 2026-11-01: dois mostradores
  * soltos confundiam). Lido numa frase só, "Temperatura lá fora 22 graus"; o rótulo visual fica fora do leitor de tela.
  */
-function Gauge({ kind, where, value, size }: { kind: "t" | "rh"; where: "lá fora" | "dentro"; value: number | null; size?: "small" }) {
+function Gauge({ kind, where, value, size }: { kind: "t" | "rh"; where: "lá fora" | "dentro"; value: number | null; size?: "small" | "auto" }) {
   const name = kind === "t" ? "Temperatura" : "Umidade do ar";
   const amount = value == null ? "não informado" : `${value} ${kind === "t" ? "graus" : "por cento"}`;
   return (
@@ -131,8 +137,10 @@ export function ClimateCard(p: ClimateProps) {
   const hasInside = p.inside.t != null || p.inside.rh != null;
   const insideDisplays = (
     <>
-      <Gauge size="small" kind="t" where="dentro" value={p.inside.t == null ? null : Math.round(p.inside.t)} />
-      <Gauge size="small" kind="rh" where="dentro" value={p.inside.rh == null ? null : Math.round(p.inside.rh)} />
+      <div className="flex items-end gap-2">
+        <Gauge size="small" kind="t" where="dentro" value={p.inside.t == null ? null : Math.round(p.inside.t)} />
+        <Gauge size="small" kind="rh" where="dentro" value={p.inside.rh == null ? null : Math.round(p.inside.rh)} />
+      </div>
       {!!p.inside.tag && <Tag tone="calm" label={p.inside.tag} />}
     </>
   );
@@ -151,7 +159,7 @@ export function ClimateCard(p: ClimateProps) {
         <p className="text-[15px] leading-5 font-semibold text-text-primary">Não foi possível obter o clima agora.</p>
         <p className="text-[13px] leading-[18px] text-text-secondary">O serviço de clima não respondeu. Tentamos de novo em alguns minutos.</p>
         {!p.outdoor && hline}
-        {!p.outdoor && hasInside ? <div className="flex flex-col gap-1.5">{insideTitle}<div className="flex flex-wrap items-center gap-2">{insideDisplays}</div></div> : noReading}
+        {!p.outdoor && hasInside ? <div className="flex flex-col gap-1.5">{insideTitle}{insideDisplays}</div> : noReading}
         <div className="flex gap-2">
           {!p.outdoor && !hasInside && registerReading}
           <SmallButton secondary={!p.outdoor && !hasInside && !!registerReading} label="Tentar de novo" onClick={p.onRetry} />
@@ -163,28 +171,23 @@ export function ClimateCard(p: ClimateProps) {
   return (
     <HomeCard className="gap-3">
       <CardHeader title={title} right={place} />
-      <div className="flex gap-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <p className={label}>LÁ FORA</p>
-          {/* Alinhados pela base; sem largura, a umidade desce para a linha de baixo com o próprio rótulo. */}
-          <div className="flex flex-wrap items-end gap-x-2 gap-y-2">
-            <span className="flex items-end gap-2">
-              {w.icon === "day" ? <img src="/figma/weather-partly-cloudy-day.svg" alt="" /> : w.icon === "night" ? <img src="/figma/moon-small.svg" alt="" width={28} height={28} className="m-1.5" /> : null}
-              <Gauge kind="t" where="lá fora" value={w.t} />
-            </span>
-            {/* Pedido do usuário (2026-11-01): a umidade no mesmo mostrador da temperatura, com %. */}
-            {w.rh != null && <Gauge kind="rh" where="lá fora" value={w.rh} />}
-          </div>
-          <p className="text-sm leading-[18px] font-semibold text-text-primary">{w.condition}</p>
-          {!!w.line && <p className="text-[13px] leading-[18px] text-text-secondary">{w.line}</p>}
+      {/*
+        Pedido do usuário (2026-11-06, ux/web-clima-distribuicao.png): temperatura e umidade lado a lado, a condição com
+        o ícone embaixo, depois máx · mín. Sem largura, os mostradores diminuem (tamanho "auto") em vez de quebrar a linha.
+      */}
+      <div className="@container flex flex-col gap-1.5">
+        <p className={label}>LÁ FORA</p>
+        <div className="flex items-end gap-2">
+          <Gauge size="auto" kind="t" where="lá fora" value={w.t} />
+          {w.rh != null && <Gauge size="auto" kind="rh" where="lá fora" value={w.rh} />}
         </div>
-        {!p.outdoor && hasInside && (
-          <>
-            <div className="w-px bg-stroke" />
-            <div className="flex w-[118px] flex-col gap-1.5">{insideTitle}{insideDisplays}</div>
-          </>
-        )}
+        <p className="flex items-center gap-1.5 text-sm leading-[18px] font-semibold text-text-primary">
+          {w.icon === "day" ? <img src="/figma/weather-partly-cloudy-day.svg" alt="" width={24} height={24} /> : w.icon === "night" ? <img src="/figma/moon-small.svg" alt="" width={20} height={20} className="m-0.5" /> : null}
+          {w.condition}
+        </p>
+        {!!w.line && <p className="text-[13px] leading-[18px] text-text-secondary">{w.line}</p>}
       </div>
+      {!p.outdoor && hasInside && <>{hline}<div className="flex flex-col gap-1.5">{insideTitle}{insideDisplays}</div></>}
       {noReading && <>{hline}{noReading}{registerReading && <div className="flex gap-2">{registerReading}</div>}</>}
       {!!p.compare && (p.compare.temperature || p.compare.humidity) && (
         <div className="flex flex-col gap-1.5 pt-2.5">
