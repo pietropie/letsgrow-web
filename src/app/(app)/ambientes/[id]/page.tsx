@@ -139,9 +139,10 @@ export default function GrowPanelPage() {
                 </span>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            {/* UX 2a: o timer centralizado à direita da régua, sempre na mesma linha; ele encolhe em vez de quebrar. */}
+            <div className="@container flex items-center gap-3">
               <PpfdGauge value={null} badge="SEM LEITURA" />
-              <div className="flex min-w-[212px] flex-1 justify-center"><PhotoperiodDial onAt={schedule.onAt} light={schedule.light} lastReading={light} /></div>
+              <div className="flex min-w-0 flex-1 justify-center"><PhotoperiodDial onAt={schedule.onAt} light={schedule.light} lastReading={light} /></div>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {/* Programação incompleta ou ausente abre o formulário de Iluminação (Figma 02C J6/J10). */}

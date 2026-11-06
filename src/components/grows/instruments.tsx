@@ -77,7 +77,8 @@ export function PhotoperiodDial({ onAt, light, lastReading }: { onAt: number | n
   const onMarker = (m: number) => { const [x, y] = point(m / 60, r); return <><circle cx={x} cy={y} r={6} fill={v("display")} stroke={v("surface")} strokeWidth={1} /><circle cx={x} cy={y} r={2.2} fill={v("state-alert")} /></>; };
   const nowMarker = (m: number) => { const [x, y] = point(m / 60, r); return <><circle cx={x} cy={y} r={8} fill={v("surface")} stroke={v("display")} strokeWidth={2} /><circle cx={x} cy={y} r={3.5} fill={v("display")} /></>; };
   return (
-    <svg width={212} height={211} viewBox="0 0 212 211" role="img" aria-label={progressSummary(onAt, light, minute) + reading} className="shrink-0">
+    // Fluido: encolhe pela largura que sobra ao lado da régua de PPFD (até 212), em vez de quebrar a linha.
+    <svg viewBox="0 0 212 211" role="img" aria-label={progressSummary(onAt, light, minute) + reading} className="block h-auto w-full max-w-[212px]">
       {progress.kind === "cycle" && progress.remaining > 0 && (progress.remaining > CAP_MINUTES
         ? <path d={arc(progress.on + progress.elapsed, progress.remaining - CAP_MINUTES)} stroke={v("stroke-soft")} strokeWidth={ARC_WIDTH} strokeLinecap="round" fill="none" />
         : <path d={arc(progress.on + progress.elapsed, progress.remaining)} stroke={v("stroke-soft")} strokeWidth={ARC_WIDTH} fill="none" />)}
@@ -108,7 +109,8 @@ export function PpfdGauge({ value, badge }: { value: number | null; badge: strin
   const filled = value == null ? 0 : Math.max(0, Math.min(24, Math.round((value / 1200) * 24)));
   return (
     <div className="flex flex-col items-center gap-[5px] rounded-lg border border-display py-2 pr-2 pl-1.5" role="img" aria-label={value == null ? "PPFD: sem leitura" : `PPFD: ${value}`}>
-      <div className="flex items-center gap-1"><span className="font-label text-sm leading-4 text-display">PPFD:</span><PanelTag tone={value == null ? "neutral" : "calm"} label={badge} /></div>
+      {/* Em linha estreita (contêiner abaixo de 22 rem), o rótulo vai em cima da etiqueta, para sobrar largura para o timer. */}
+      <div className="flex flex-col items-center gap-1 @[22rem]:flex-row"><span className="font-label text-sm leading-4 text-display">PPFD:</span><PanelTag tone={value == null ? "neutral" : "calm"} label={badge} /></div>
       <div className="flex h-[172px] gap-0.5" aria-hidden>
         <div className="flex flex-col items-end justify-between py-0.5">{[...PPFD_STEPS].reverse().map(s => <span key={s} className="font-label text-sm leading-4 text-display">{s}</span>)}</div>
         <div className="flex flex-col justify-between py-2">{PPFD_STEPS.map(s => <span key={s} className="block h-px w-[5px] bg-display" />)}</div>
