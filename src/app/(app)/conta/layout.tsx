@@ -39,6 +39,7 @@ function AccountMenu() {
       <PageTitle>Minha conta</PageTitle>
       {exploring ? <>
         <PageSubtitle>Você pode explorar sem cadastrar plantas.</PageSubtitle>
+        <ActionRow title="Créditos e plano" body="Saldo, renovação e histórico de uso." href={routes.credits()} active={at(routes.credits()) || at(routes.plans())} />
         <ActionRow title="Privacidade e dados" body="Informações sobre conta, fotos e conversas." href={routes.accountData()} active={at(routes.accountData())} />
         <ActionRow title="Entender os créditos" body="O que é incluído e o que pode ser cobrado." href={routes.creditHelp()} active={at(routes.creditHelp())} />
         <ActionRow title="Como o LetsGrow funciona" body="Conheça o acompanhamento." href={routes.help()} />
