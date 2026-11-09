@@ -13,14 +13,16 @@ const PLANS = [
 const CATALOG = { web_enabled: true, plans: [{ plan_key: 'jardineiro', label: 'Jardineiro', periods: [{ period: 'monthly', months: 1, price_brl: 24.9 }] }] }
 const period = { start: '2026-11-01T00:00:00Z', renews_at: '2026-12-01T00:00:00Z' }
 const queries = (used, total, extra = {}) => ({ mode: 'queries', period, queries: { used, total, remaining: total - used }, credits: null, near_limit: false, exhausted: false, ...extra })
-const base = { current: 'free', plans: PLANS, catalog: CATALOG, usage: queries(0, 1), subscription: null, exploring: false, canBuy: true, packs: false }
+// O plano recomendado vem do backend (GET /billing/recommendation): o card só o mostra.
+const base = { current: 'free', plans: PLANS, catalog: CATALOG, usage: queries(0, 1), subscription: null, exploring: false, canBuy: true, packs: false, recommended: 'jardineiro' }
 const view = (over = {}) => p.planCardView({ ...base, ...over })
 
-test('only plans with a sellable price are for sale; the recommended is the next one that raises the limit', () => {
+test('only plans with a sellable price are for sale; the upsell is the plan the backend recommends', () => {
   assert.deepEqual(p.plansForSale(PLANS, CATALOG).map(x => x.plan_key), ['jardineiro'])
-  assert.equal(p.recommendedPlan('free', PLANS, CATALOG).plan_key, 'jardineiro')
-  assert.equal(p.recommendedPlan('jardineiro', PLANS, CATALOG), null)
-  assert.equal(p.recommendedPlan('free', PLANS, { ...CATALOG, web_enabled: false }), null)
+  assert.equal(view().upsell.plan.plan_key, 'jardineiro')
+  assert.equal(view({ recommended: null }).upsell, null)
+  assert.equal(view({ recommended: undefined }).upsell, null)
+  assert.equal(view({ recommended: 'free' }).upsell, null)
 })
 
 test('P1 Free normal: limits, usage, Jardineiro outcomes, price card or Pix, "Fazer upgrade" primary', () => {
@@ -91,12 +93,8 @@ test('nothing for sale or purchase off: no upsell and no price', () => {
   assert.equal(view({ exploring: true, canBuy: false }).secondary, null)
 })
 
-test('Planos: features of the current plan, comparison and yearly only with a real discount', () => {
-  assert.deepEqual(p.planFeatures(PLANS[0]), ['1 planta e 1 ambiente', '1 consulta do Bobby por mês'])
-  assert.deepEqual(p.comparisonRows([PLANS[0], PLANS[1]]).map(r => r.values), [['1', '2'], ['1', '1'], ['3', '3'], ['1', '4'], ['—', '—']])
-  assert.equal(p.yearlySaving(CATALOG, 'jardineiro'), null)
-  const yearly = { web_enabled: true, plans: [{ plan_key: 'jardineiro', label: 'Jardineiro', periods: [{ period: 'monthly', months: 1, price_brl: 24.9 }, { period: 'yearly', months: 12, price_brl: 239 }] }] }
-  assert.equal(p.yearlySaving(yearly, 'jardineiro'), 20)
-  assert.equal(p.yearlySaving({ ...yearly, plans: [{ ...yearly.plans[0], periods: [yearly.plans[0].periods[0], { period: 'yearly', months: 12, price_brl: 298.8 }] }] }, 'jardineiro'), null)
+test('price format', () => {
   assert.equal(p.brl(24.9), 'R$ 24,90')
+  assert.equal(p.priceOf(CATALOG, 'jardineiro'), 24.9)
+  assert.equal(p.priceOf({ ...CATALOG, web_enabled: false }, 'jardineiro'), null)
 })

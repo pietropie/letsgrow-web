@@ -6,6 +6,7 @@ import { useAccountBilling, useBillingCatalog, useCreditPackages, useFeatureFlag
 import { planCardView, type PlanCardView } from "@/lib/plans";
 import { routes } from "@/lib/routes";
 import { useMe } from "@/lib/session-client";
+import { useRecommendation } from "@/lib/recommendation-client";
 import { useUsage } from "@/lib/usage-client";
 
 /** Junta /plans/config, /billing/catalog, /billing/subscription e /usage no card. null enquanto carrega ou sem dado. */
@@ -17,10 +18,12 @@ export function usePlanCard(exploring: boolean): { view: PlanCardView | null; pl
   const packages = useCreditPackages().data;
   const flag = useFeatureFlag("plan_switch");
   const usage = useUsage();
+  const recommendation = useRecommendation();
   const current = billing?.effective_plan ?? me?.plan;
-  if (!plans || !current || flag.isPending || usage.status === "loading") return { view: null };
+  if (!plans || !current || flag.isPending || usage.status === "loading" || recommendation.status === "loading") return { view: null };
   const view = planCardView({
     current, plans, catalog, exploring,
+    recommended: recommendation.status === "ok" ? recommendation.rec.plan_key : null,
     usage: usage.status === "ok" ? usage.usage : null,
     subscription: billing?.current ?? null,
     canBuy: flag.enabled || me?.is_dev_mode === true,
@@ -52,7 +55,7 @@ export function Benefit({ children }: { children: React.ReactNode }) {
  * créditos"); no modo explorar, "Ver planos" é secundário. O toque fora do botão abre o link de baixo (Créditos e plano).
  */
 export function PlanCard({ view, active = false, playUrl }: { view: PlanCardView; active?: boolean; playUrl?: string }) {
-  const href = (to: "plans" | "packs" | "credits") => (to === "plans" ? (view.upsell ? `${routes.plans()}?plano=${view.upsell.plan.plan_key}` : routes.plans()) : to === "packs" ? routes.packs() : routes.credits());
+  const href = (to: "plans" | "packs" | "credits") => (to === "plans" ? routes.plans() : to === "packs" ? routes.packs() : routes.credits());
   const filled = view.usage?.bar == null ? 0 : Math.round(view.usage.bar * 10);
   return (
     <section aria-label="Seu plano" className={`relative flex flex-col gap-3 rounded-2xl border bg-surface p-4 ${active ? "border-primary" : "border-stroke"}`}>

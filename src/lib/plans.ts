@@ -1,5 +1,6 @@
 /**
- * Card "Seu plano" (UX item 19; Figma 2388:19857, estados P1–P7, web W25) e a tela de Planos (W26/W27).
+ * Card "Seu plano" (UX item 19; Figma 2388:19857, estados P1–P7, web W25). O plano recomendado é do backend
+ * (GET /billing/recommendation, item 19b): aqui não se escolhe plano.
  * Preço e o que está à venda vêm de GET /billing/catalog (web); limites, de GET /plans/config pelo `plan_key` (o
  * `price_display` e o `badge_text` de lá não são usados: nada de "Popular" sem dado). Uso, de GET /usage.
  * Decisões do usuário (9 nov): Free normal → "Fazer upgrade" primário; explorar → "Ver planos" secundário; sem teste
@@ -46,16 +47,6 @@ export function plansForSale(plans: PlanLimits[], catalog: Catalog | null | unde
   return plans.filter(p => p.plan_key !== "free" && (priceOf(catalog, p.plan_key, "monthly") != null || priceOf(catalog, p.plan_key, "yearly") != null));
 }
 
-/**
- * O recomendado: o próximo plano à venda acima do atual que aumenta o limite pedido (consultas do Bobby ou plantas).
- * Sem plano acima à venda, null: sem upsell (P5).
- */
-export function recommendedPlan(current: string, plans: PlanLimits[], catalog: Catalog | null | undefined, need: "queries" | "plants" = "queries"): PlanLimits | null {
-  const mine = plans.find(p => p.plan_key === current);
-  const order = plans.findIndex(p => p.plan_key === current);
-  const better = (p: PlanLimits) => !mine || (need === "plants" ? p.max_plants > mine.max_plants : queriesOf(p) > queriesOf(mine));
-  return plansForSale(plans, catalog).find(p => plans.indexOf(p) > order && better(p)) ?? null;
-}
 
 /** "1 planta · 1 ambiente · 1 consulta do Bobby por mês" */
 export function limitsLine(p: PlanLimits, withQueries = true): string {
@@ -108,6 +99,8 @@ export type PlanCardInput = {
   subscription: Subscription | null | undefined;
   /** Sem planta ativa (modo explorar). */
   exploring: boolean;
+  /** O plano que o backend recomenda (GET /billing/recommendation, item 19b); null ou ausente: sem upsell. */
+  recommended?: string | null;
   /** A compra está liberada (flag `plan_switch` ou conta em modo dev). */
   canBuy: boolean;
   /** Há pacote de créditos à venda na web. */
@@ -129,7 +122,7 @@ export function planCardView(input: PlanCardInput): PlanCardView | null {
   if (!mine) return null;
   const u = input.usage ?? null;
   const renews = day(u?.period.renews_at);
-  const rec = input.canBuy ? recommendedPlan(current, input.plans, input.catalog) : null;
+  const rec = input.canBuy && input.recommended ? input.plans.find(p => p.plan_key === normalizePlan(input.recommended!) && p.plan_key !== current) ?? null : null;
   const recPrice = rec ? priceOf(input.catalog, rec.plan_key) : null;
   const upsell = rec && recPrice != null ? { plan: rec, benefits: benefits(rec, mine), price: `${brl(recPrice)} por mês · cartão ou Pix` } : null;
   const base = { name: mine.label, note: null, upsell: null, primary: null, manage: null, secondary: null, link: { label: "Ver uso e histórico", to: "credits" as const } };
@@ -185,36 +178,4 @@ export function planCardView(input: PlanCardInput): PlanCardView | null {
   const r = renewal(sub);
   const paidNote = paid && (price || r) ? [price ? `${brl(price)} por ${sub?.period === "yearly" ? "ano" : "mês"}` : null, r].filter(Boolean).join(" · ") + "." : null;
   return { ...base, state: paid ? "paid" : state, tag, lead: limitsLine(mine), usage, note: exhaustedNote ?? paidNote, manage };
-}
-
-/** Os itens do cartão do plano atual na tela de Planos: "1 planta e 1 ambiente", "1 consulta do Bobby por mês". */
-export function planFeatures(p: PlanLimits): string[] {
-  if (isUnlimited(p)) return ["Plantas e ambientes sem limite", "Converse com o Bobby sem limite", ...(p.sensors_allowed ? ["Sensores no ambiente"] : [])];
-  const plants = p.max_plants >= UNLIMITED ? "Plantas sem limite" : plural(p.max_plants, "planta", "plantas");
-  const grows = p.max_grows >= UNLIMITED ? "ambientes sem limite" : plural(p.max_grows, "ambiente", "ambientes");
-  return [
-    `${plants} e ${grows}`,
-    p.ai_queries_per_month == null ? "Bobby sem limite" : `${plural(p.ai_queries_per_month, "consulta", "consultas")} do Bobby por mês`,
-    ...(p.sensors_allowed ? ["Sensores no ambiente"] : []),
-  ];
-}
-
-/** "Economize X %" do anual, arredondado para baixo; null sem desconto real. */
-export function yearlySaving(catalog: Catalog | null | undefined, planKey: string): number | null {
-  const m = priceOf(catalog, planKey, "monthly"), y = priceOf(catalog, planKey, "yearly");
-  if (m == null || y == null || m <= 0) return null;
-  const pct = Math.floor((1 - y / (12 * m)) * 100);
-  return pct > 0 ? pct : null;
-}
-
-/** Linhas da tabela comparativa (W26). */
-export function comparisonRows(plans: PlanLimits[]): { label: string; values: string[] }[] {
-  const n = (x: number) => (x >= UNLIMITED ? "Sem limite" : String(x));
-  return [
-    { label: "Plantas", values: plans.map(p => n(p.max_plants)) },
-    { label: "Ambientes", values: plans.map(p => n(p.max_grows)) },
-    { label: "Vasos por ambiente", values: plans.map(p => n(p.max_pots_per_grow)) },
-    { label: "Consultas do Bobby por mês", values: plans.map(p => (p.ai_queries_per_month == null ? "Sem limite" : String(p.ai_queries_per_month))) },
-    { label: "Sensores", values: plans.map(p => (p.sensors_allowed ? "Sim" : "—")) },
-  ];
 }
