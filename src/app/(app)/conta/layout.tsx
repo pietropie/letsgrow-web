@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ActionRow, Button, ConfirmDialog, PageSubtitle, PageTitle } from "@/components/ui";
+import { PlanCard, usePlanCard } from "@/components/plan-card";
 import { useNotificationPreferences } from "@/lib/account";
 import { useGrows } from "@/lib/hooks";
 import { routes } from "@/lib/routes";
@@ -10,11 +11,14 @@ import { useLogout, useMe } from "@/lib/session-client";
 import { deviceTimezone } from "@/shared/lib/accountFeatures";
 
 /**
- * Minha conta (Figma 2160:8793 e 2160:8881; desktop W19–W20). Celular: a lista é a página /conta e cada item abre a
- * sua. Tablet e desktop: a lista fica fixa à esquerda (360) e o item aberto ao lado (até 560), marcado na lista.
+ * Minha conta (Figma 2160:8793 e 2160:8881; desktop W19–W20; card do plano W25, item 19). Celular: a lista é a página
+ * /conta e cada item abre a sua. Tablet e desktop: a lista fica fixa à esquerda (360) e o item aberto ao lado (até 560),
+ * marcado na lista. Planos (W26/W27) ocupa a largura toda, com a coluna do pagamento, e a lista sai da frente.
  */
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
-  const root = usePathname() === "/conta";
+  const path = usePathname();
+  const root = path === "/conta";
+  if (path === routes.plans()) return <div className="flex min-w-0 flex-col gap-4">{children}</div>;
   return (
     <div className="flex flex-col gap-4 md:grid md:grid-cols-[minmax(0,360px)_minmax(0,560px)] md:items-start md:gap-6">
       <div className={root ? "flex flex-col gap-4" : "hidden md:flex md:flex-col md:gap-4"}><AccountMenu /></div>
@@ -34,18 +38,24 @@ function AccountMenu() {
   const exploring = !!grows && !grows.some(g => g.status === "active");
   const notifications = !prefs ? "Frequência e prévia das notificações." : prefs.frequency === "in_app" ? "Notificações desativadas · só no app." : `Resumo diário · ${prefs.preview === "discreet" ? "prévias discretas" : "prévia completa"}.`;
   const at = (href: string) => path === href || path.startsWith(`${href}/`);
+  // Item 19 (P1–P7, W25): o card "Seu plano" no lugar da linha "Créditos e plano"; a linha fica enquanto carrega.
+  const plan = usePlanCard(exploring);
+  const planActive = at(routes.credits()) || at(routes.plans());
+  const planRow = plan.view
+    ? <PlanCard view={plan.view} active={planActive} playUrl={plan.playUrl} />
+    : <ActionRow title="Créditos e plano" body="Saldo, renovação e histórico de uso." href={routes.credits()} active={planActive} />;
   return (
     <>
       <PageTitle>Minha conta</PageTitle>
       {exploring ? <>
         <PageSubtitle>Você pode explorar sem cadastrar plantas.</PageSubtitle>
-        <ActionRow title="Créditos e plano" body="Saldo, renovação e histórico de uso." href={routes.credits()} active={at(routes.credits()) || at(routes.plans())} />
+        {planRow}
         <ActionRow title="Privacidade e dados" body="Informações sobre conta, fotos e conversas." href={routes.accountData()} active={at(routes.accountData())} />
         <ActionRow title="Entender os créditos" body="O que é incluído e o que pode ser cobrado." href={routes.creditHelp()} active={at(routes.creditHelp())} />
         <ActionRow title="Como o LetsGrow funciona" body="Conheça o acompanhamento." href={routes.help()} />
       </> : <>
         <PageSubtitle>{name ? `${name} · conta privada` : "Conta privada"}</PageSubtitle>
-        <ActionRow title="Créditos e plano" body="Saldo, renovação e histórico de uso." href={routes.credits()} active={at(routes.credits()) || at(routes.plans())} />
+        {planRow}
         <ActionRow title="Privacidade e dados" body="Veja como suas informações são usadas." href={routes.accountData()} active={at(routes.accountData())} />
         <ActionRow title="Acompanhamento e notificações" body={notifications} href={routes.notifications()} active={at(routes.notifications())} />
         <ActionRow title="Contexto do Bobby" body="Revise ou esqueça preferências." href={routes.bobbyMemory()} />
