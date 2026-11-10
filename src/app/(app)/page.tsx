@@ -183,13 +183,13 @@ export default function HomePage() {
       {greeting}
       <InstallBanner />
       {band && <PlanBand name={planName!} view={band} link={{ label: "Uso e plano", href: routes.credits() }} planHref={routes.plans()} />}
-      <div className="grid items-start gap-[14px] md:grid-cols-[minmax(0,1fr)_minmax(0,400px)] md:gap-6">
+      <div className="grid gap-[14px] md:grid-cols-[minmax(0,1fr)_minmax(0,400px)] md:gap-6">
         <div className="contents md:flex md:flex-col md:gap-5">
           {attention.total > 0 && <div className="order-1 md:order-2"><AttentionCard items={attention.items} total={attention.total} hrefOf={attentionHref} /></div>}
-          <section className="order-2 flex min-w-0 flex-col gap-2 md:order-1" aria-label="Suas plantas">
+          <section className="order-2 flex min-w-0 flex-col gap-2 md:order-1 md:flex-1" aria-label="Suas plantas">
             {growPlants.length ? (
               // Celular: faixa com rolagem e encaixe (cartões de 300; uma planta ocupa a largura); tablet e desktop: grade de 2.
-              <div className={growPlants.length > 1 ? "-mx-5 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-5 pb-1 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0" : "flex"}>
+              <div className={growPlants.length > 1 ? "-mx-5 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-5 pb-1 md:mx-0 md:grid md:flex-1 md:grid-cols-2 md:overflow-visible md:px-0" : "flex md:flex-1"}>
                 {growPlants.map((plant, i) => {
                   const s = summaryOf(plant.id);
                   const icon = phaseIcon(plant.current_phase), day = s?.phase_day ?? phaseDay(plant);
@@ -214,15 +214,15 @@ export default function HomePage() {
             ) : <><SectionHeader title="SUAS PLANTAS" action="Ver calendário" href={routes.plantsCalendar()} /><p className="text-sm leading-5 text-text-secondary">Nenhuma planta ativa neste ambiente.</p></>}
           </section>
         </div>
-        <div className="order-3 md:sticky md:top-6">
-          <BobbyHome title={b?.title || "Pergunte sobre o seu cultivo"}
+        <div className="order-3 flex flex-col">
+          <BobbyHome title={b?.title || "Pergunte sobre o seu cultivo"} body={b?.body}
             subtitle={b?.title ? "Resumo de hoje, feito com os seus registros." : "O resumo do dia aparece aqui quando houver registros."}
             suggestionsTitle="SUGESTÕES PELO QUE VOCÊ REGISTROU" suggestions={suggestions}
             exhausted={out ? { ...out, plansHref: routes.plans() } : null}
             inputHref={routes.bobby()!} left={left} footer={footer} />
         </div>
       </div>
-      <div className="grid items-start gap-[14px] md:grid-cols-2 md:gap-6">
+      <div className="grid gap-[14px] md:grid-cols-2 md:gap-6">
         <ClimateCard
           state={state} growName={grow.name} outdoor={outdoor} place={place}
           weather={w ? { t: whole(w.temperature), rh: whole(w.humidity), icon: weatherIcon(w), condition: w.weather_description, line: outdoorLine(w) } : null}

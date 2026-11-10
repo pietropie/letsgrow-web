@@ -281,13 +281,13 @@ export function EnvironmentMini(p: {
 }) {
   const tile = (name: string, body: ReactNode, caption: string) => (
     <div className="flex min-w-[140px] flex-1 basis-[47%] flex-col gap-1 rounded-xl border-[0.5px] border-stroke px-2.5 py-2 lg:basis-[30%]" aria-label={`${name}: ${caption}`} role="group">
-      <p className={tileLabel}>{name}</p>{body}<p className={tileCaption}>{caption}</p>
+      <p className={tileLabel}>{name}</p>{body}<p className={`mt-auto ${tileCaption}`}>{caption}</p>
     </div>
   );
   return (
     <HomeCard className="gap-2.5">
       <CardHeader title={`AMBIENTE · ${p.growName.toUpperCase()}`} right={<TextAction label="Abrir painel" href={p.panelHref} />} />
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-1 flex-wrap gap-2">
         {tile("TEMPERATURA", <SegmentedDisplay size="small" unit="°" value={p.temperature.value} label="Temperatura" />, p.temperature.caption)}
         {tile("UMIDADE", <SegmentedDisplay size="small" unit="%" value={p.humidity.value} label="Umidade" />, p.humidity.caption)}
         {tile("VPD", <p className="text-2xl leading-[30px] font-bold text-text-primary">{p.vpd.text}</p>, p.vpd.caption)}

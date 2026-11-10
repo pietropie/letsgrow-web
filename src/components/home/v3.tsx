@@ -134,19 +134,20 @@ export function FirstPlantCard({ href }: { href: string }) {
  * a entrada e o que resta de conversas. Esgotado (N2): o aviso no lugar das sugestões, com "Ver planos" e a saída.
  */
 export function BobbyHome(p: {
-  title: string; subtitle: string;
+  title: string; body?: string | null; subtitle: string;
   suggestionsTitle: string; suggestions: (Suggestion & { href: string })[];
   exhausted: { title: string; body: string; wait: string | null; plansHref: string } | null;
   inputHref: string; left: { text: string; fill: number } | null; footer: string | null;
 }) {
   const [waiting, setWaiting] = useState(false);
   return (
-    <section aria-label="Bobby" className="flex flex-col gap-3 rounded-2xl border-[1.5px] border-primary bg-surface p-4">
+    <section aria-label="Bobby" className="flex flex-1 flex-col gap-3 rounded-2xl border-[1.5px] border-primary bg-surface p-4">
       <div className="flex items-start gap-3">
         <img src="/figma/bobby-calm.png" alt="" width={48} height={64} className="h-16 w-12 shrink-0 object-contain" />
         <div className="flex flex-col gap-1">
           <p className={label}>BOBBY · ASSISTENTE DE IA</p>
           <h2 className="text-[17px] leading-[23px] font-bold text-text-primary">{p.title}</h2>
+          {!!p.body && <p className="line-clamp-4 text-[15px] leading-[21px] text-text">{p.body}</p>}
           <p className="text-sm leading-5 text-text-secondary">{p.subtitle}</p>
         </div>
       </div>
@@ -174,7 +175,7 @@ export function BobbyHome(p: {
         </>
       )}
       {!p.exhausted && (
-        <Link href={p.inputHref} className="flex min-h-12 items-center gap-2 rounded-full border border-input-border bg-surface py-1.5 pr-1.5 pl-4 text-[15px] text-text-secondary hover:bg-surface-high">
+        <Link href={p.inputHref} className="mt-auto flex min-h-12 items-center gap-2 rounded-full border border-input-border bg-surface py-1.5 pr-1.5 pl-4 text-[15px] text-text-secondary hover:bg-surface-high">
           <span className="flex-1">Pergunte ao Bobby…</span>
           <span aria-hidden className="flex size-9 items-center justify-center rounded-full bg-primary text-surface">↑</span>
         </Link>
