@@ -62,16 +62,28 @@ export function PlanBand({ name, view, link, planHref }: { name: string; view: P
   );
 }
 
+/** Item 20a: o título da seção ("SUA PLANTA", "SUAS PLANTAS · 2") e "Ver calendário" na primeira linha do cartão. */
+function CardTitle({ title, calendarHref }: { title: string; calendarHref?: string | null }) {
+  return (
+    <div className="flex items-center gap-2">
+      <h2 className="font-label flex-1 text-base leading-5 text-display">{title}</h2>
+      {calendarHref && <Link href={calendarHref} className="relative z-10 text-sm leading-[18px] font-semibold text-primary hover:underline">Ver calendário</Link>}
+    </div>
+  );
+}
+
 const outlineBtn = "flex min-h-11 flex-1 items-center justify-center rounded-[10px] border border-input-border bg-surface px-2 text-center text-[15px] leading-5 font-semibold text-text-primary hover:bg-surface-high";
 
 /** Cartão grande da planta (N1, W30): foto de 150, estado, fase e dia, a próxima ação e "Registrar" | "Perguntar". */
 export function PlantCardV3(p: {
+  header: { title: string; calendarHref: string | null };
   name: string; href: string | null; photo: { src: string; real: boolean }; phase: { icon: string; label: string } | null;
   phaseLine: string; last: string | null; next: { text: string; href: string | null } | null; idle: string;
   recordHref: string | null; askHref: string; wide: boolean;
 }) {
   return (
     <article className={`${card} flex shrink-0 snap-start flex-col gap-2.5 p-3 ${p.wide ? "w-full" : "w-[300px] md:w-auto"}`}>
+      <CardTitle title={p.header.title} calendarHref={p.header.calendarHref} />
       <Link href={p.href ?? "#"} aria-label={`Abrir ${p.name}`} className="block overflow-hidden rounded-xl bg-surface">
         <img src={p.photo.src} alt="" className={`h-[150px] w-full ${p.photo.real ? "object-cover" : "object-contain"}`} />
       </Link>
@@ -109,6 +121,7 @@ export function PlantCardV3(p: {
 export function FirstPlantCard({ href }: { href: string }) {
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-input-border p-4">
+      <CardTitle title="SUAS PLANTAS" />
       <p className="text-lg leading-6 font-bold text-text-primary">Sua primeira planta aparece aqui</p>
       <p className="text-[15px] leading-[21px] text-text">Com foto, fase, dia do ciclo e o que fazer em seguida. Comece pelo ambiente; você completa depois.</p>
       <Link href={href} className={`${outlineBtn} min-h-12`}>Cadastrar meu ambiente</Link>

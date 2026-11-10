@@ -100,7 +100,6 @@ export default function HomePage() {
         <div><PageTitle>No seu tempo.</PageTitle><PageSubtitle>Você ainda não precisa cadastrar nada.</PageSubtitle></div>
         {band && <PlanBand name={planName!} view={{ ...band, offer: null }} link={{ label: "Ver planos", href: routes.plans() }} planHref={routes.plans()} />}
         <section aria-label="Suas plantas" className="flex flex-col gap-2">
-          <SectionHeader title="SUAS PLANTAS" />
           <FirstPlantCard href={routes.newGrow()!} />
         </section>
         <BobbyHome title="Olá, eu sou o Bobby" subtitle="Posso explicar como o LetsGrow funciona e quais informações você controla."
@@ -188,7 +187,6 @@ export default function HomePage() {
         <div className="contents md:flex md:flex-col md:gap-5">
           {attention.total > 0 && <div className="order-1 md:order-2"><AttentionCard items={attention.items} total={attention.total} hrefOf={attentionHref} /></div>}
           <section className="order-2 flex min-w-0 flex-col gap-2 md:order-1" aria-label="Suas plantas">
-            <SectionHeader title={growPlants.length === 1 ? "SUA PLANTA" : `SUAS PLANTAS${growPlants.length ? ` · ${growPlants.length}` : ""}`} action="Ver calendário" href={routes.plantsCalendar()} />
             {growPlants.length ? (
               // Celular: faixa com rolagem e encaixe (cartões de 300; uma planta ocupa a largura); tablet e desktop: grade de 2.
               <div className={growPlants.length > 1 ? "-mx-5 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-5 pb-1 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0" : "flex"}>
@@ -202,7 +200,7 @@ export default function HomePage() {
                   const next = fromBackend ? { text: fromBackend.text, href: fromBackend.watering ? routes.plantDiary(plant.id) : routes.bobbyObservation(plant.id) }
                     : local ? { text: local.text, href: attentionHref(local) } : null;
                   return (
-                    <PlantCardV3 key={plant.id} wide={growPlants.length === 1} name={plantDisplayName(plant)} href={routes.plant(plant.id)}
+                    <PlantCardV3 key={plant.id} header={{ title: growPlants.length === 1 ? "SUA PLANTA" : `SUAS PLANTAS · ${growPlants.length}`, calendarHref: routes.plantsCalendar() }} wide={growPlants.length === 1} name={plantDisplayName(plant)} href={routes.plant(plant.id)}
                       photo={cover ? { src: cover, real: !!latest && cover === latest } : { src: s?.strain_image_url || `/figma/plant-${plantIllustration(plant.id)}.png`, real: false }}
                       phase={icon ? { icon: `/figma/phase-${icon}.svg`, label: PHASE_ICON_LABEL[icon] } : null}
                       phaseLine={[phases[plant.current_phase]?.label ?? "Fase não informada", day && `dia ${day}`].filter(Boolean).join(" · ")}
@@ -213,7 +211,7 @@ export default function HomePage() {
                   );
                 })}
               </div>
-            ) : <p className="text-sm leading-5 text-text-secondary">Nenhuma planta ativa neste ambiente.</p>}
+            ) : <><SectionHeader title="SUAS PLANTAS" action="Ver calendário" href={routes.plantsCalendar()} /><p className="text-sm leading-5 text-text-secondary">Nenhuma planta ativa neste ambiente.</p></>}
           </section>
         </div>
         <div className="order-3 md:sticky md:top-6">
