@@ -159,13 +159,14 @@ export type SummaryV3 = {
 };
 
 /**
- * A próxima ação do backend, filtrada pelo critério de "Precisa de atenção" (alertas critical/anomaly e rega).
+ * A próxima ação do backend, filtrada pelo critério de "Precisa de atenção", que recebe do /plants/bob-alerts só os
+ * alertas critical e anomaly (rega atrasada incluída). O lembrete de tier "attention" não marca o cartão (como no app).
  * undefined: o backend ainda não manda o campo (o cliente usa os itens de atenção); null: nada pendente.
  */
 export function backendNextAction(s: SummaryV3 | undefined): { text: string; watering: boolean } | null | undefined {
   if (!s || !("next_action" in s)) return undefined;
   const a = s.next_action;
-  if (!a || !(a.tier === "critical" || a.tier === "anomaly" || a.action === "watering")) return null;
+  if (!a || !(a.tier === "critical" || a.tier === "anomaly")) return null;
   return { text: a.message, watering: a.action === "watering" };
 }
 

@@ -83,7 +83,9 @@ test('next action of a plant: its first watering or Bobby item', () => {
 test('backend contract (optional until deploy): next_action filtered by tier, idle line from last_event', () => {
   assert.equal(h.backendNextAction({}), undefined)
   assert.equal(h.backendNextAction({ next_action: null }), null)
-  assert.deepEqual(h.backendNextAction({ next_action: { action: 'watering', tier: 'attention', message: 'A última rega foi há 6 dias.' } }), { text: 'A última rega foi há 6 dias.', watering: true })
+  // Lembrete de rega de baixa prioridade: não aparece em "Precisa de atenção", então não marca o cartão.
+  assert.equal(h.backendNextAction({ next_action: { action: 'watering', tier: 'attention', message: '3+ dias sem rega registrada.' } }), null)
+  assert.deepEqual(h.backendNextAction({ next_action: { action: 'watering', tier: 'anomaly', message: 'A última rega foi há 6 dias.' } }), { text: 'A última rega foi há 6 dias.', watering: true })
   assert.equal(h.backendNextAction({ next_action: { action: 'harvest', tier: 'attention', message: 'x' } }), null)
   assert.equal(h.backendNextAction({ next_action: { action: 'temperature', tier: 'critical', message: 'Temperatura em 32 °C.' } }).text, 'Temperatura em 32 °C.')
   const now = new Date(2026, 10, 9, 15)
