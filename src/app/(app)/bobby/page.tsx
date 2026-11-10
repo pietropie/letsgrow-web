@@ -74,7 +74,7 @@ function Bobby() {
   const router = useRouter();
   const params = useSearchParams();
   const client = useQueryClient();
-  const linkPrompt = params.get("pergunta"), linkPlant = params.get("planta"), linkGrow = params.get("ambiente"), linkConversation = params.get("conversa");
+  const linkDraft = params.get("rascunho"), linkPrompt = params.get("pergunta"), linkPlant = params.get("planta"), linkGrow = params.get("ambiente"), linkConversation = params.get("conversa");
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const previews = useMemo(() => files.map(f => URL.createObjectURL(f)), [files]);
@@ -320,6 +320,14 @@ function Bobby() {
     submit(text, ctx, null);
     router.replace(routes.bobby()!);
   }, [linkPrompt]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Rascunho (sugestões do Início): a pergunta vai para a caixa com o contexto, e só sai quando a pessoa envia.
+  useEffect(() => {
+    const text = linkDraft?.trim() ?? "";
+    if (!text) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    newConversation(); setPlantId(linkPlant); setGrowId(linkPlant ? null : linkGrow); setInput(text);
+    router.replace(routes.bobby()!);
+  }, [linkDraft]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const t = setTimeout(() => setSearch(query), 300); return () => clearTimeout(t); }, [query]);
   // Sair da tela de vez para a resposta em andamento (nada é salvo nem cobrado).
   useEffect(() => () => controller.current?.abort(), []);

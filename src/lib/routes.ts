@@ -27,6 +27,8 @@ export const routes = {
   bobby: (): string | null => "/bobby",
   /** Abre o Bobby com uma pergunta pronta (dica do clima, resumo): ela é enviada numa conversa nova. */
   bobbyAsk: (prompt: string, ctx?: { grow_id?: string; plant_id?: string | null }): string | null => `/bobby?${query({ pergunta: prompt, planta: ctx?.plant_id, ambiente: ctx?.grow_id })}`,
+  /** Abre o Bobby com a pergunta escrita e o contexto, sem enviar: a pessoa confirma (sugestões do Início, item 20). */
+  bobbyDraft: (prompt: string, ctx?: { grow_id?: string | null; plant_id?: string | null }) => `/bobby?${query({ rascunho: prompt, planta: ctx?.plant_id, ambiente: ctx?.grow_id })}`,
   /** Abre o Bobby já com a planta ou o ambiente como contexto, sem enviar nada. */
   bobbyWith: (ctx: { plantId?: string | null; growId?: string | null }) => `/bobby${ctx.plantId || ctx.growId ? `?${query({ planta: ctx.plantId, ambiente: ctx.growId })}` : ""}`,
   bobbyObservation: (plantId?: string): string | null => `/bobby/observacao${plantId ? `?planta=${plantId}` : ""}`,
