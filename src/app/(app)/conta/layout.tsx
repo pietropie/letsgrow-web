@@ -2,8 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ActionRow, Button, ConfirmDialog, PageSubtitle, PageTitle } from "@/components/ui";
-import { PlanCard, usePlanCard } from "@/components/plan-card";
+import { ActionRow, Button, ConfirmDialog, PageTitle } from "@/components/ui";
+import { AccountPlanCard, AccountProfile, RowGroup, useAccountPlan } from "@/components/plan-card";
 import { useNotificationPreferences } from "@/lib/account";
 import { useGrows } from "@/lib/hooks";
 import { routes } from "@/lib/routes";
@@ -11,7 +11,7 @@ import { useLogout, useMe } from "@/lib/session-client";
 import { deviceTimezone } from "@/shared/lib/accountFeatures";
 
 /**
- * Minha conta (Figma 2160:8793 e 2160:8881; desktop W19–W20; card do plano W25, item 19). Celular: a lista é a página
+ * Minha conta v2 (UX item 21; Figma A1–A4, desktop W31; antes 2160:8793, 2160:8881, W19–W20 e o card do item 19). Celular: a lista é a página
  * /conta e cada item abre a sua. Tablet e desktop: a lista fica fixa à esquerda (360) e o item aberto ao lado (até 560),
  * marcado na lista. Planos (W26/W27) ocupa a largura toda, com a coluna do pagamento, e a lista sai da frente.
  */
@@ -34,35 +34,33 @@ function AccountMenu() {
   const logout = useLogout();
   const [confirm, setConfirm] = useState(false);
   const prefs = useNotificationPreferences(deviceTimezone()).data;
-  const name = me?.full_name?.trim().split(/\s+/)[0];
   const exploring = !!grows && !grows.some(g => g.status === "active");
   const notifications = !prefs ? "Frequência e prévia das notificações." : prefs.frequency === "in_app" ? "Notificações desativadas · só no app." : `Resumo diário · ${prefs.preview === "discreet" ? "prévias discretas" : "prévia completa"}.`;
   const at = (href: string) => path === href || path.startsWith(`${href}/`);
-  // Item 19 (P1–P7, W25): o card "Seu plano" no lugar da linha "Créditos e plano"; a linha fica enquanto carrega.
-  const plan = usePlanCard(exploring);
+  const plan = useAccountPlan(exploring);
   const planActive = at(routes.credits()) || at(routes.plans());
-  const planRow = plan.view
-    ? <PlanCard view={plan.view} active={planActive} playUrl={plan.playUrl} />
-    : <ActionRow title="Créditos e plano" body="Saldo, renovação e histórico de uso." href={routes.credits()} active={planActive} />;
   return (
     <>
       <PageTitle>Minha conta</PageTitle>
-      {exploring ? <>
-        <PageSubtitle>Você pode explorar sem cadastrar plantas.</PageSubtitle>
-        {planRow}
-        <ActionRow title="Privacidade e dados" body="Informações sobre conta, fotos e conversas." href={routes.accountData()} active={at(routes.accountData())} />
-        <ActionRow title="Entender os créditos" body="O que é incluído e o que pode ser cobrado." href={routes.creditHelp()} active={at(routes.creditHelp())} />
-        <ActionRow title="Como o LetsGrow funciona" body="Conheça o acompanhamento." href={routes.help()} />
-      </> : <>
-        <PageSubtitle>{name ? `${name} · conta privada` : "Conta privada"}</PageSubtitle>
-        {planRow}
-        <ActionRow title="Privacidade e dados" body="Veja como suas informações são usadas." href={routes.accountData()} active={at(routes.accountData())} />
-        <ActionRow title="Acompanhamento e notificações" body={notifications} href={routes.notifications()} active={at(routes.notifications())} />
-        <ActionRow title="Contexto do Bobby" body="Revise ou esqueça preferências." href={routes.bobbyMemory()} />
-        <ActionRow title="Ajuda e suporte" body="Entenda o serviço ou relate um problema." href={routes.support()} active={at(routes.support())} />
-      </>}
+      <AccountProfile name={me?.full_name?.trim() || null} email={me?.email ?? null} exploring={exploring} plan={plan ? { name: plan.planName, free: plan.free } : null} />
+      {/* "Créditos e plano" fica acessível em qualquer modo (82bdf5e): a linha simples enquanto o cartão carrega ou se falhar. */}
+      {plan
+        ? <AccountPlanCard planName={plan.planName} view={plan.view} active={planActive} playUrl={plan.playUrl} />
+        : <ActionRow title="Créditos e plano" body="Saldo, renovação e histórico de uso." href={routes.credits()} active={planActive} />}
+      <RowGroup title="Configurações" rows={exploring
+        ? [{ title: "Privacidade e dados", body: "Informações sobre conta, fotos e conversas.", href: routes.accountData(), active: at(routes.accountData()) }]
+        : [
+          { title: "Acompanhamento e notificações", body: notifications, href: routes.notifications(), active: at(routes.notifications()) },
+          { title: "Contexto do Bobby", body: "Revise ou esqueça preferências.", href: routes.bobbyMemory() },
+          { title: "Privacidade e dados", body: "Veja como suas informações são usadas.", href: routes.accountData(), active: at(routes.accountData()) },
+        ]} />
+      <RowGroup title="Ajuda" rows={[
+        { title: "Ajuda e suporte", body: "Entenda o serviço ou relate um problema.", href: routes.support(), active: at(routes.support()) },
+        { title: "Entender os créditos", body: "O que é incluído e o que pode ser cobrado.", href: routes.creditHelp(), active: at(routes.creditHelp()) },
+        { title: "Como o LetsGrow funciona", body: "Conheça o acompanhamento.", href: routes.help() },
+      ]} />
       {/* Só na web: abrir como app, a partir da tela inicial do iPhone. */}
-      <ActionRow title="Usar como app no iPhone" body="Adicione o LetsGrow à Tela de Início." href={routes.install()} />
+      <RowGroup title="Neste aparelho" rows={[{ title: "Usar como app no iPhone", body: "Adicione o LetsGrow à Tela de Início.", href: routes.install() }]} />
       <Button secondary label="Sair da conta" onClick={() => setConfirm(true)} />
       <ConfirmDialog open={confirm} title="Sair da conta" message="Deseja encerrar a sessão?" confirm="Sair" destructive onConfirm={logout} onCancel={() => setConfirm(false)} />
     </>

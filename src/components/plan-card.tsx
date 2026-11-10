@@ -2,96 +2,126 @@
 
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui";
-import { useAccountBilling, useBillingCatalog, useCreditPackages, useFeatureFlag, usePlanConfigs } from "@/lib/account";
-import { planCardView, type PlanCardView } from "@/lib/plans";
+import { useAccountBilling, useCreditPackages, useBillingCatalog, useFeatureFlag, usePlanConfigs } from "@/lib/account";
+import { accountPlanView, type AccountPlanView } from "@/lib/account-v2";
+import { planBandView, type Meter } from "@/lib/home-v3";
+import { normalizePlan } from "@/lib/plans";
+import { useRecommendation } from "@/lib/recommendation-client";
 import { routes } from "@/lib/routes";
 import { useMe } from "@/lib/session-client";
-import { useRecommendation } from "@/lib/recommendation-client";
 import { useUsage } from "@/lib/usage-client";
 
-/** Junta /plans/config, /billing/catalog, /billing/subscription e /usage no card. null enquanto carrega ou sem dado. */
-export function usePlanCard(exploring: boolean): { view: PlanCardView | null; playUrl?: string } {
+/**
+ * Minha conta v2 (UX item 21; Figma A1–A4, web W31): perfil só leitura, o cartão "Plano e uso" enxuto e as linhas
+ * agrupadas. Substitui o card "Seu plano" do item 19 (sem benefícios nem preço; a comparação fica em Planos).
+ */
+
+/** Junta /billing/recommendation, /usage e /billing/subscription. null enquanto carrega ou se algum falhar. */
+export function useAccountPlan(exploring: boolean): { view: AccountPlanView; planName: string; free: boolean; playUrl?: string } | null {
   const me = useMe().data;
   const plans = usePlanConfigs().data;
+  const billing = useAccountBilling();
   const catalog = useBillingCatalog().data;
-  const billing = useAccountBilling().data;
   const packages = useCreditPackages().data;
   const flag = useFeatureFlag("plan_switch");
   const usage = useUsage();
   const recommendation = useRecommendation();
-  const current = billing?.effective_plan ?? me?.plan;
-  if (!plans || !current || flag.isPending || usage.status === "loading" || recommendation.status === "loading") return { view: null };
-  const view = planCardView({
-    current, plans, catalog, exploring,
-    recommended: recommendation.status === "ok" ? recommendation.rec.plan_key : null,
-    usage: usage.status === "ok" ? usage.usage : null,
-    subscription: billing?.current ?? null,
+  if (!plans || flag.isPending || billing.isPending || usage.status === "loading" || recommendation.status !== "ok") return null;
+  const rec = recommendation.rec;
+  const label = (key: string | null) => key ? plans.find(p => p.plan_key === normalizePlan(key))?.label ?? null : null;
+  const planName = label(rec.current_plan);
+  if (!planName) return null;
+  const u = usage.status === "ok" ? usage.usage : null;
+  const band = planBandView(rec, u, label(rec.plan_key));
+  const view = accountPlanView({
+    rec, usage: u, sub: billing.data?.current ?? null, meters: band.meters, offerText: band.offer?.text ?? null,
+    recommendedLabel: label(rec.plan_key), exploring,
     canBuy: flag.enabled || me?.is_dev_mode === true,
     packs: !!catalog?.web_enabled && !!packages?.length,
   });
-  return { view, playUrl: billing?.play_manage_url };
+  return { view, planName, free: rec.current_plan === "free", playUrl: billing.data?.play_manage_url };
 }
 
-const TAG = { alert: "bg-state-alert", error: "bg-state-error", calm: "bg-source-highlight" } as const;
-const STRIP = { normal: "bg-bg", alert: "bg-state-alert", error: "bg-bg" } as const;
-const BAR = { normal: "var(--color-display)", alert: "var(--color-display)", error: "var(--color-state-error)" } as const;
-const secondaryLink = "flex min-h-[52px] w-full items-center justify-center rounded-xl border border-border bg-surface px-4 py-[13px] text-center text-base leading-[22px] font-semibold text-text hover:bg-surface-high";
+const label = "font-label text-xs leading-4 text-text-secondary";
+const DOT = { limit: "bg-state-alert", near: "bg-state-alert", out: "bg-state-error" } as const;
+const MARK = { limit: "no limite", near: "perto do fim", out: "esgotado" } as const;
+const secondary = "flex min-h-[52px] w-full items-center justify-center rounded-xl border border-border bg-surface px-4 py-[13px] text-center text-base leading-[22px] font-semibold text-text hover:bg-surface-high";
 
-/** Item com o check verde dos benefícios (Figma P1, W26). */
-export function Benefit({ children }: { children: React.ReactNode }) {
+function MeterCell({ m }: { m: Meter }) {
   return (
-    <li className="flex items-start gap-2.5 text-[15px] leading-[21px] text-text">
-      <span aria-hidden className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full bg-source-highlight">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/figma/check.svg" alt="" className="size-4" />
+    <div className="flex min-w-0 flex-col gap-1">
+      <p className={label}>{m.label}</p>
+      <p className="flex items-center gap-1.5 text-[15px] leading-5 font-bold text-text-primary">
+        <span className="truncate">{m.value}</span>
+        {m.mark && <><span aria-hidden className={`size-2.5 shrink-0 rounded-full border border-display ${DOT[m.mark]}`} /><span className="sr-only">{MARK[m.mark]}</span></>}
+      </p>
+      <span aria-hidden className="block h-1.5 overflow-hidden rounded-full bg-stroke-soft">
+        {m.fill != null && <span className="block h-full rounded-full bg-display" style={{ width: `${Math.round(m.fill * 100)}%` }} />}
       </span>
-      <span>{children}</span>
-    </li>
+    </div>
   );
 }
 
-/**
- * Card "Seu plano" no topo da Minha conta (UX item 19, P1–P7; web W25). Um primário só ("Fazer upgrade" ou "Comprar
- * créditos"); no modo explorar, "Ver planos" é secundário. O toque fora do botão abre o link de baixo (Créditos e plano).
- */
-export function PlanCard({ view, active = false, playUrl }: { view: PlanCardView; active?: boolean; playUrl?: string }) {
-  const href = (to: "plans" | "packs" | "credits") => (to === "plans" ? routes.plans() : to === "packs" ? routes.packs() : routes.credits());
-  const filled = view.usage?.bar == null ? 0 : Math.round(view.usage.bar * 10);
+/** Perfil (só leitura): inicial, nome, e-mail e a etiqueta do plano. */
+export function AccountProfile({ name, email, exploring, plan }: { name: string | null; email: string | null; exploring: boolean; plan: { name: string; free: boolean } | null }) {
+  const initial = (name || email || "?").trim().charAt(0).toUpperCase();
   return (
-    <section aria-label="Seu plano" className={`relative flex flex-col gap-3 rounded-2xl border bg-surface p-4 ${active ? "border-primary" : "border-stroke"}`}>
+    <div className="flex items-center gap-3.5">
+      <span aria-hidden className="flex size-14 shrink-0 items-center justify-center rounded-full bg-source-highlight text-2xl font-bold text-text-primary">{initial}</span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xl leading-7 font-bold text-text-primary">{name || "Sua conta"}</p>
+        <p className="text-sm leading-5 break-words text-text-secondary">{[email, exploring ? "explorando" : "conta privada"].filter(Boolean).join(" · ")}</p>
+      </div>
+      {plan && <span className={`font-label shrink-0 rounded px-1.5 text-[13px] leading-5 text-display ${plan.free ? "bg-state-stable" : "bg-source-highlight"}`}>{plan.name.toUpperCase()}</span>}
+    </div>
+  );
+}
+
+/** "Plano e uso" (A1–A4, W31): nome, situação, os três medidores do Início v3 e a ação do estado. */
+export function AccountPlanCard({ planName, view, active, playUrl }: { planName: string; view: AccountPlanView; active: boolean; playUrl?: string }) {
+  return (
+    <section aria-label="Plano e uso" className={`flex flex-col gap-3 rounded-2xl border bg-surface p-4 ${active ? "border-primary" : "border-stroke"}`}>
       <div className="flex items-start justify-between gap-2">
-        <h2 className="font-label text-sm leading-[18px] text-text-secondary">SEU PLANO</h2>
-        {view.tag && <span className={`font-label rounded px-1.5 text-[13px] leading-5 ${view.tag.tone === "error" ? "text-white" : "text-display"} ${TAG[view.tag.tone]}`}>{view.tag.label}</span>}
+        <div><p className={label}>SEU PLANO</p><p className="text-[26px] leading-8 font-extrabold text-text-primary">{planName}</p></div>
+        <Link href={routes.credits()} className="flex min-h-11 items-center gap-1 text-[15px] font-semibold text-text-primary hover:underline">Uso e histórico <span aria-hidden>›</span></Link>
       </div>
-      <div className="flex flex-col gap-1">
-        <p className="text-[26px] leading-8 font-extrabold text-text-primary">{view.name}</p>
-        <p className="text-sm leading-5 text-text-muted">{view.lead}</p>
-      </div>
-      {view.usage && (
-        <p className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm leading-5 font-semibold text-text-primary ${STRIP[view.usage.tone]}`}>
-          {view.usage.bar != null && <span aria-hidden className="flex shrink-0 gap-[2px]">{Array.from({ length: 10 }, (_, i) => <span key={i} className="h-3.5 w-[5px] rounded-[1px]" style={{ background: i < filled ? BAR[view.usage!.tone] : "var(--color-stroke-soft)" }} />)}</span>}
-          <span>{view.usage.text}</span>
-        </p>
-      )}
-      {view.note && <p className="text-[15px] leading-[21px] text-text">{view.note}</p>}
-      {view.upsell && <>
-        <hr className="border-stroke" />
-        <h3 className="font-label text-xs leading-4 text-text-secondary">COM O {view.upsell.plan.label.toUpperCase()}</h3>
-        <ul className="flex flex-col gap-2">{view.upsell.benefits.map(b => <Benefit key={b}>{b}</Benefit>)}</ul>
-        <p className="text-sm leading-5 font-semibold text-text-muted">{view.upsell.price}</p>
-      </>}
-      {(view.primary || view.secondary || view.manage) && (
-        <div className="relative z-10 flex flex-col gap-2">
-          {view.primary && <ButtonLink label={view.primary.label} href={href(view.primary.to)} />}
-          {view.secondary && <ButtonLink secondary label={view.secondary.label} href={href(view.secondary.to)} />}
-          {view.manage && (view.manage.to === "play" && playUrl
-            ? <a href={playUrl} target="_blank" rel="noreferrer" className={secondaryLink}>Gerenciar no Google Play</a>
-            : <Link href={routes.plans()} className={secondaryLink}>Gerenciar assinatura</Link>)}
+      {view.situation && <p className="text-[15px] leading-5 text-text-secondary">{view.situation}</p>}
+      <div className="grid grid-cols-3 gap-3">{view.meters.map(m => <MeterCell key={m.label} m={m} />)}</div>
+      {view.notice && <p className="rounded-lg bg-state-alert px-3 py-2.5 text-[15px] leading-5 font-semibold text-text-primary">{view.notice}</p>}
+      {view.offer && (
+        <div className="flex flex-col gap-1 rounded-xl bg-source-highlight p-3.5">
+          <p className="font-label text-xs leading-4 text-display">RECOMENDADO PARA VOCÊ</p>
+          <p className="text-[15px] leading-[21px] font-semibold text-text-primary">{view.offer}</p>
         </div>
       )}
-      <Link href={href(view.link.to)} className="flex min-h-11 items-center justify-between text-[15px] font-semibold text-text-primary after:absolute after:inset-0 after:rounded-2xl after:content-[''] hover:underline">
-        {view.link.label}<span aria-hidden>›</span>
-      </Link>
+      {view.primary && <ButtonLink label={view.primary.label} href={view.primary.to === "packs" ? routes.packs() : routes.plans()} />}
+      {view.manage && (view.manage === "play" && playUrl
+        ? <a href={playUrl} target="_blank" rel="noreferrer" className={secondary}>Gerenciar no Google Play</a>
+        : <Link href={routes.plans()} className={secondary}>Gerenciar assinatura</Link>)}
+      {view.link && <Link href={routes.plans()} className="flex min-h-11 items-center justify-center gap-1 text-[15px] font-semibold text-text-primary hover:underline">{view.link.label} <span aria-hidden>›</span></Link>}
+    </section>
+  );
+}
+
+/** Um grupo de linhas num cartão, com divisórias (Configurações, Ajuda, Neste aparelho). */
+export function RowGroup({ title, rows }: { title: string; rows: { title: string; body: string; href: string | null; active?: boolean }[] }) {
+  return (
+    <section aria-label={title} className="flex flex-col gap-2">
+      <h2 className={`${label} px-0.5`}>{title.toUpperCase()}</h2>
+      <ul className="overflow-hidden rounded-2xl border border-stroke bg-surface">
+        {rows.map(r => (
+          <li key={r.title} className="border-b border-stroke last:border-b-0">
+            <Link href={r.href ?? "#"} aria-current={r.active ? "page" : undefined}
+              className={`flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-surface-high ${r.active ? "bg-surface-bobby" : ""}`}>
+              <span className="flex flex-1 flex-col gap-0.5">
+                <span className="text-base leading-6 font-semibold text-text-primary">{r.title}</span>
+                <span className="text-sm leading-5 text-text-secondary">{r.body}</span>
+              </span>
+              <span aria-hidden className="text-lg text-text-primary">›</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
