@@ -2,33 +2,29 @@
 
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useState, useSyncExternalStore } from "react";
-import { AttentionCard, ClimateCard, EnvironmentMini, HomeGreeting, SectionHeader, SkeletonCard } from "@/components/home/blocks";
-import { BobbyHome, FirstPlantCard, PlanBand, PlantCardV3 } from "@/components/home/v3";
+import { ClimateCard, HomeGreeting, SkeletonCard } from "@/components/home/blocks";
+import { AttentionPanel, BobbyPanel, EmptyPlantsPanel, EnvPanel, PlanPanel, PlantPanel } from "@/components/home/panel-home";
+import { CornerLink, PanelCard, PanelTitle } from "@/components/panel";
 import { GrowPicker, GrowPlaceFlow, type PlaceMode } from "@/components/home/place-flow";
 import { InstallBanner } from "@/components/install-banner";
 import { useUsage } from "@/lib/usage-client";
 import { Button, ButtonLink, Notice, PageSubtitle, PageTitle } from "@/components/ui";
 import { usePlanConfigs } from "@/lib/account";
-import { backendNextAction, conversationsLine, exhaustedNotice, homeSuggestions, idleLine, nextAction, planBandView, type BriefSuggestion, type SummaryV3 } from "@/lib/home-v3";
+import { conversationsLine, exhaustedNotice, homeSuggestions, planBandView, type BriefSuggestion, type SummaryV3 } from "@/lib/home-v3";
 import { normalizePlan } from "@/lib/plans";
+import { growPanelProps, plantPanelProps } from "@/lib/panel-props";
 import { useRecommendation } from "@/lib/recommendation-client";
 import { ApiError, api } from "@/lib/api";
 import { useActivePlants, useBobAlerts, useDailyBrief, useGrow, useGrows, useMinuteOfDay, usePlantSummaries, useRememberedGrow } from "@/lib/hooks";
 import { routes } from "@/lib/routes";
 import { useMe } from "@/lib/session-client";
 import { phases } from "@/shared/constants/theme";
-import { shortDayMonth } from "@/shared/lib/dates";
-import { attentionItems, climateFooter, compareClimate, greetingDate, growChoiceLine, lastRecordLine, outdoorLine, pickGrow, stamp, tipBasis, weatherCard, weatherIcon, whole, type AttentionItem, type Weather } from "@/shared/lib/homeClimate";
-import { dialProgress, durationLabel, formatClock, offMinute, scheduleFromGrow } from "@/shared/lib/lightSchedule";
-import { environmentMeasurement, formatMeasurementValue } from "@/shared/lib/measurements";
+import { attentionItems, climateFooter, compareClimate, greetingDate, growChoiceLine, outdoorLine, pickGrow, stamp, tipBasis, weatherCard, weatherIcon, whole, type AttentionItem, type Weather } from "@/shared/lib/homeClimate";
+import { environmentMeasurement } from "@/shared/lib/measurements";
 import { phaseDay } from "@/shared/lib/phaseDay";
-import { PHASE_ICON_LABEL, phaseIcon } from "@/shared/lib/plantFacts";
-import { plantDisplayName, plantIllustration } from "@/shared/lib/plantIdentity";
-import type { EnvironmentMeasurement } from "@/shared/types/api";
+import { plantDisplayName } from "@/shared/lib/plantIdentity";
 
 const SOURCE: Record<string, string> = { manual: "manual", sensor: "sensor" };
-/** "manual 12:17", "sensor 19 out" ou "sem leitura". */
-const readingCaption = (m: EnvironmentMeasurement) => m.value == null ? "sem leitura" : [m.source ? SOURCE[m.source] ?? m.source : null, stamp(m.observed_at)].filter(Boolean).join(" ");
 const noSubscribe = () => () => {};
 
 
@@ -98,18 +94,17 @@ export default function HomePage() {
     return (
       <div className="flex max-w-[600px] flex-col gap-4">
         <div><PageTitle>No seu tempo.</PageTitle><PageSubtitle>Você ainda não precisa cadastrar nada.</PageSubtitle></div>
-        {band && <PlanBand name={planName!} view={{ ...band, offer: null }} link={{ label: "Ver planos", href: routes.plans() }} planHref={routes.plans()} />}
-        <section aria-label="Suas plantas" className="flex flex-col gap-2">
-          <FirstPlantCard href={routes.newGrow()!} />
-        </section>
-        <BobbyHome title="Olá, eu sou o Bobby" subtitle="Posso explicar como o LetsGrow funciona e quais informações você controla."
-          suggestionsTitle="PARA COMEÇAR (ABRE A AJUDA, NÃO GASTA CONVERSAS)"
+        {band && <PlanPanel name={planName!} view={{ ...band, offer: null }} link={{ label: "Ver planos", href: routes.plans() }} planHref={routes.plans()} />}
+        <EmptyPlantsPanel plansHref={rec?.plan_key ? routes.plans() : null} addHref={routes.newGrow()!} />
+        <BobbyPanel title="Olá, eu sou o Bobby" body="Posso explicar como o LetsGrow funciona e quais informações você controla."
+          marker="Atalhos para a ajuda · não gastam conversas" suggestionsTitle="Para começar"
           suggestions={[
             { key: "help", label: "Como funciona o acompanhamento?", href: routes.help() },
             { key: "data", label: "Quem pode ver meus dados?", href: routes.beforeSharing() },
             { key: "plan", label: "O que é incluído no meu plano?", href: routes.creditHelp() },
           ]}
-          exhausted={null} inputHref={routes.bobby()!} left={left} footer={null} />
+          exhausted={null} inputHref={routes.bobby()!} footer={null}
+          meter={usage?.queries && usage.queries.total != null && usage.mode !== "unlimited" ? { used: usage.queries.used, total: usage.queries.total, text: left?.text ?? "" } : null} />
         <InstallBanner />
       </div>
     );
@@ -135,7 +130,7 @@ export default function HomePage() {
   }
 
   const env = detail?.env ?? grow.env;
-  const temperature = environmentMeasurement(env, "temperature"), humidity = environmentMeasurement(env, "humidity"), vpd = environmentMeasurement(env, "vpd");
+  const temperature = environmentMeasurement(env, "temperature"), humidity = environmentMeasurement(env, "humidity");
   const outdoor = grow.grow_type === "outdoor";
   const status = weather.error instanceof ApiError ? weather.error.response.status : null;
   const state = weatherCard({ data: weather.data, failed: !!weather.error, status });
@@ -157,15 +152,6 @@ export default function HomePage() {
     item.target.kind === "grow" ? routes.growPanel(item.target.id) : item.target.kind === "diary" ? routes.plantDiary(item.target.id)
       : item.target.kind === "usage" ? routes.credits() : routes.bobbyObservation(item.target.id);
 
-  const schedule = scheduleFromGrow(detail ?? grow);
-  const progress = dialProgress(schedule.onAt, schedule.light, minute);
-  const light = {
-    header: schedule.onAt != null && schedule.light != null && schedule.light < 1440 ? `LUZ · ${formatClock(schedule.onAt)} → ${formatClock(offMinute(schedule.onAt, schedule.light))}` : "LUZ",
-    state: progress.kind === "none" ? "—" : progress.kind === "full" || progress.lit ? "LUZ" : "ESCURO",
-    sub: progress.kind === "cycle" ? (progress.lit ? `faltam ${durationLabel(progress.remaining)}` : `liga às ${formatClock(progress.on)}`) : progress.kind === "full" ? "o dia todo" : "",
-    caption: progress.kind === "none" ? "sem programação" : "pela programação", onAt: schedule.onAt, minutes: schedule.light, minute,
-  };
-  const range = (target: number | null | undefined, unit: string) => target != null ? `faixa ${whole(target)}${unit}` : null;
 
   const facts = growPlants.map(p => ({ id: p.id, name: plantDisplayName(p), phaseLabel: phases[p.current_phase]?.label ?? null, day: summaryOf(p.id)?.phase_day ?? phaseDay(p) ?? null, lastWatering: lastWatering[p.id] }));
   // Sugestões: `suggestions[]` do daily-brief (regras do backend, não gastam conversa; lista vazia esconde o bloco).
@@ -177,69 +163,59 @@ export default function HomePage() {
       .map(s => ({ ...s, href: routes.bobbyDraft(s.label, { plant_id: s.plantId, grow_id: s.growId }) }));
   const out = exhaustedNotice(usage);
   const b = brief.data;
+  const q = usage?.queries;
+  const meter = q && q.total != null && usage?.mode !== "unlimited" ? { used: q.used, total: q.total, text: left?.text ?? "" } : null;
 
+  // Ambiente no painel (item 23b): lâmpada, mostradores com o marcador da origem ou "fora da faixa", luz e contagens.
+  // Ambiente no painel (item 23b), com a mesma regra da lista de Ambientes.
+  const envPanel = <EnvPanel {...growPanelProps({ grow: { ...grow, ...(detail ?? {}) }, plantCount: growPlants.length, items: attention.items, minute })} />;
+  const climate = (
+    <ClimateCard
+      state={state} growName={grow.name} outdoor={outdoor} place={place}
+      weather={w ? { t: whole(w.temperature), rh: whole(w.humidity), icon: weatherIcon(w), condition: w.weather_description, line: outdoorLine(w) } : null}
+      inside={{ t: temperature.value, rh: humidity.value, tag: insideTag }}
+      compare={w && !outdoor ? compareClimate({ t: w.temperature, rh: w.humidity }, { t: temperature.value, rh: humidity.value }) : null}
+      tip={tip ? { title: tip.title, text: tip.body, basis: tipBasis(tip.sources) } : null}
+      footer={climateFooter({ fetchedAt: w?.fetched_at, inside: !outdoor && (temperature.value != null || humidity.value != null) ? { source: insideRef.source, observedAt: insideRef.observed_at } : null, tip: !!tip })}
+      onLocate={() => setPlaceMode("locate")} onSearch={() => setPlaceMode("city")}
+      onChangePlace={() => setPlaceMode("place")} onRetry={() => void weather.refetch()}
+      readingHref={routes.growReading(grow.id)}
+      askTipHref={tip ? routes.bobbyAsk(tip.cta_prompt || tip.title, { grow_id: grow.id }) : null} />
+  );
+
+  // W1p (1200, 3 colunas): plano, atenção e ambiente | plantas | Bobby e clima. Celular (I1): plano, atenção, plantas,
+  // Bobby, clima e ambiente. As colunas viram "contents" abaixo de lg para a ordem do celular valer.
   return (
     <>
       {greeting}
       <InstallBanner />
-      {band && <PlanBand name={planName!} view={band} link={{ label: "Uso e plano", href: routes.credits() }} planHref={routes.plans()} />}
-      <div className="grid gap-[14px] md:grid-cols-[minmax(0,1fr)_minmax(0,400px)] md:gap-6">
-        <div className="contents md:flex md:flex-col md:gap-5">
-          {attention.total > 0 && <div className="order-1 md:order-2"><AttentionCard items={attention.items} total={attention.total} hrefOf={attentionHref} /></div>}
-          <section className="order-2 flex min-w-0 flex-col gap-2 md:order-1 md:flex-1" aria-label="Suas plantas">
-            {growPlants.length ? (
-              // Celular: faixa com rolagem e encaixe (cartões de 300; uma planta ocupa a largura); tablet e desktop: grade de 2.
-              <div className={growPlants.length > 1 ? "-mx-5 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-5 pb-1 md:mx-0 md:grid md:flex-1 md:grid-cols-2 md:overflow-visible md:px-0" : "flex md:flex-1"}>
-                {growPlants.map((plant, i) => {
-                  const s = summaryOf(plant.id);
-                  const icon = phaseIcon(plant.current_phase), day = s?.phase_day ?? phaseDay(plant);
-                  const latest = s?.latest_photo_url ?? photos[i]?.data?.[0]?.photo_urls?.[0];
-                  const cover = s?.cover_image_url ?? latest;
-                  const fromBackend = backendNextAction(s);
-                  const local = fromBackend === undefined ? nextAction(plant.id, attention.items, s?.last_watering_at) : null;
-                  const next = fromBackend ? { text: fromBackend.text, href: fromBackend.watering ? routes.plantDiary(plant.id) : routes.bobbyObservation(plant.id) }
-                    : local ? { text: local.text, href: attentionHref(local) } : null;
-                  return (
-                    <PlantCardV3 key={plant.id} header={{ title: growPlants.length === 1 ? "SUA PLANTA" : `SUAS PLANTAS · ${growPlants.length}`, calendarHref: routes.plantsCalendar() }} wide={growPlants.length === 1} name={plantDisplayName(plant)} href={routes.plant(plant.id)}
-                      photo={cover ? { src: cover, real: !!latest && cover === latest } : { src: s?.strain_image_url || `/figma/plant-${plantIllustration(plant.id)}.png`, real: false }}
-                      phase={icon ? { icon: `/figma/phase-${icon}.svg`, label: PHASE_ICON_LABEL[icon] } : null}
-                      phaseLine={[phases[plant.current_phase]?.label ?? "Fase não informada", day && `dia ${day}`].filter(Boolean).join(" · ")}
-                      last={lastRecordLine(s?.last_event_at)}
-                      next={next}
-                      idle={idleLine(s?.last_event)}
-                      recordHref={routes.plantDiary(plant.id, { novo: true })} askHref={routes.bobbyWith({ plantId: plant.id })} />
-                  );
-                })}
-              </div>
-            ) : <><SectionHeader title="SUAS PLANTAS" action="Ver calendário" href={routes.plantsCalendar()} /><p className="text-sm leading-5 text-text-secondary">Nenhuma planta ativa neste ambiente.</p></>}
-          </section>
+      <div className="flex flex-col gap-[14px] lg:grid lg:grid-cols-3 lg:items-start lg:gap-5">
+        <div className="contents lg:flex lg:flex-col lg:gap-5">
+          {band && <div className="order-1 lg:order-none"><PlanPanel name={planName!} view={band} link={{ label: "Uso e plano", href: routes.credits() }} planHref={routes.plans()} /></div>}
+          {attention.total > 0 && <div className="order-2 lg:order-none"><AttentionPanel items={attention.items} total={attention.total} hrefOf={attentionHref} /></div>}
+          <div className="order-6 lg:order-none">{envPanel}</div>
         </div>
-        <div className="order-3 flex flex-col">
-          <BobbyHome title={b?.title || "Pergunte sobre o seu cultivo"} body={b?.body}
-            subtitle={b?.title ? "Resumo de hoje, feito com os seus registros." : "O resumo do dia aparece aqui quando houver registros."}
-            suggestionsTitle="SUGESTÕES PELO QUE VOCÊ REGISTROU" suggestions={suggestions}
-            exhausted={out ? { ...out, plansHref: routes.plans() } : null}
-            inputHref={routes.bobby()!} left={left} footer={footer} />
+        <section className="order-3 flex min-w-0 flex-col gap-[14px] lg:order-none lg:gap-5" aria-label="Suas plantas">
+          {growPlants.length ? growPlants.map((plant, i) => (
+            <PlantPanel key={plant.id} header={{ title: growPlants.length === 1 ? "Sua planta" : `Suas plantas · ${growPlants.length}`, calendarHref: routes.plantsCalendar() }}
+              {...plantPanelProps({ plant, summary: summaryOf(plant.id), growName: grow.name, items: attention.items, hrefOf: attentionHref, diaryPhoto: photos[i]?.data?.[0]?.photo_urls?.[0], illustrate: true })} />
+          )) : (
+            <PanelCard label="Suas plantas">
+              <PanelTitle right={<CornerLink href={routes.plantsCalendar()}>Ver calendário</CornerLink>}>Suas plantas</PanelTitle>
+              <p className="text-[15px] leading-[21px] text-text">Nenhuma planta ativa neste ambiente.</p>
+            </PanelCard>
+          )}
+        </section>
+        <div className="contents lg:flex lg:flex-col lg:gap-5">
+          <div className="order-4 lg:order-none">
+            <BobbyPanel title={b?.title || "Pergunte sobre o seu cultivo"} body={b?.body}
+              marker={b?.title ? "Resumo de hoje · feito com os seus registros" : "O resumo aparece quando houver registros"}
+              suggestionsTitle="Sugestões pelo que você registrou" suggestions={suggestions}
+              exhausted={out ? { text: `${out.title}. ${out.body}`, plansHref: rec?.plan_key ? routes.plans() : null } : null}
+              inputHref={routes.bobby()!} meter={meter} footer={footer} />
+          </div>
+          <div className="order-5 lg:order-none">{climate}</div>
         </div>
-      </div>
-      <div className="grid gap-[14px] md:grid-cols-2 md:gap-6">
-        <ClimateCard
-          state={state} growName={grow.name} outdoor={outdoor} place={place}
-          weather={w ? { t: whole(w.temperature), rh: whole(w.humidity), icon: weatherIcon(w), condition: w.weather_description, line: outdoorLine(w) } : null}
-          inside={{ t: temperature.value, rh: humidity.value, tag: insideTag }}
-          compare={w && !outdoor ? compareClimate({ t: w.temperature, rh: w.humidity }, { t: temperature.value, rh: humidity.value }) : null}
-          tip={tip ? { title: tip.title, text: tip.body, basis: tipBasis(tip.sources) } : null}
-          footer={climateFooter({ fetchedAt: w?.fetched_at, inside: !outdoor && (temperature.value != null || humidity.value != null) ? { source: insideRef.source, observedAt: insideRef.observed_at } : null, tip: !!tip })}
-          onLocate={() => setPlaceMode("locate")} onSearch={() => setPlaceMode("city")}
-          onChangePlace={() => setPlaceMode("place")} onRetry={() => void weather.refetch()}
-          readingHref={routes.growReading(grow.id)}
-          askTipHref={tip ? routes.bobbyAsk(tip.cta_prompt || tip.title, { grow_id: grow.id }) : null} />
-        <EnvironmentMini growName={grow.name} panelHref={routes.growPanel(grow.id)}
-          temperature={{ value: temperature.value == null ? null : whole(temperature.value), unit: "°", caption: [range(detail?.target_temp_c, " °"), readingCaption(temperature)].filter(Boolean).join(" · ") }}
-          humidity={{ value: humidity.value == null ? null : whole(humidity.value), unit: "%", caption: [range(detail?.target_humidity_rh, " %"), readingCaption(humidity)].filter(Boolean).join(" · ") }}
-          vpd={vpd.value == null ? { text: "—", caption: "sem leitura" } : { text: `${formatMeasurementValue(vpd.value)} kPa`, caption: [vpd.source === "sensor" ? "sensor" : "calculado", stamp(vpd.observed_at)].filter(Boolean).join(" · ") }}
-          light={light}
-          exhaust={detail?.exhaust_power_pct != null ? { value: `${detail.exhaust_power_pct} %`, caption: `registrado ${shortDayMonth(detail.exhaust_power_updated_at) ?? ""}`.trim() } : null} />
       </div>
 
       <GrowPlaceFlow growId={grow.id} growName={grow.name} mode={placeMode} onClose={() => setPlaceMode(null)} />

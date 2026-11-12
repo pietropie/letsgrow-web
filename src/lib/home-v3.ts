@@ -25,7 +25,8 @@ const join = (items: string[]) => (items.length < 2 ? items.join("") : `${items.
 const UNLIMITED = 9999;
 const unlimited = (n: number | null | undefined) => n == null || n >= UNLIMITED;
 
-export type Meter = { label: string; value: string; fill: number | null; mark: "limit" | "near" | "out" | null; detail: string | null };
+/** `seg`: os números para o medidor segmentado do painel (item 23); null sem limite ou em créditos. */
+export type Meter = { label: string; value: string; fill: number | null; mark: "limit" | "near" | "out" | null; detail: string | null; seg: { used: number; total: number } | null };
 export type PlanBandView = {
   meters: Meter[];
   /** F2: a linha amarela do que resta. */
@@ -39,19 +40,19 @@ export function planBandView(rec: Rec, usage: BandUsage, recommendedLabel: strin
   const has = (r: Reason) => rec.reasons.includes(r);
   const count = (key: "plants" | "grows", label: string, reason: Reason): Meter => {
     const { used, total } = rec.usage[key];
-    if (unlimited(total)) return { label, value: String(used), fill: null, mark: null, detail: null };
-    return { label, value: `${used} de ${total}`, fill: total ? Math.min(1, used / total!) : 0, mark: has(reason) ? "limit" : null, detail: null };
+    if (unlimited(total)) return { label, value: String(used), fill: null, mark: null, detail: null, seg: null };
+    return { label, value: `${used} de ${total}`, fill: total ? Math.min(1, used / total!) : 0, mark: has(reason) ? "limit" : null, detail: null, seg: { used, total: total! } };
   };
   const renews = shortDay(usage?.period.renews_at);
   let bobby: Meter;
   if (usage?.mode === "credits" && usage.credits) {
-    bobby = { label: "CRÉDITOS", value: plural(usage.credits.remaining, "crédito", "créditos"), fill: null, mark: usage.exhausted ? "out" : usage.near_limit ? "near" : null, detail: null };
+    bobby = { label: "CRÉDITOS", value: plural(usage.credits.remaining, "crédito", "créditos"), fill: null, mark: usage.exhausted ? "out" : usage.near_limit ? "near" : null, detail: null, seg: null };
   } else if (usage?.queries && usage.queries.total != null && usage.mode !== "unlimited") {
     const q = usage.queries;
     bobby = { label: "BOBBY NO MÊS", value: `${q.used} de ${q.total}`, fill: q.total ? Math.min(1, q.used / q.total!) : 1,
-      mark: usage.exhausted ? "out" : usage.near_limit ? "near" : null, detail: renews ? `renova ${renews}` : null };
+      mark: usage.exhausted ? "out" : usage.near_limit ? "near" : null, detail: renews ? `renova ${renews}` : null, seg: { used: q.used, total: q.total! } };
   } else {
-    bobby = { label: "BOBBY NO MÊS", value: "sem limite", fill: null, mark: null, detail: null };
+    bobby = { label: "BOBBY NO MÊS", value: "sem limite", fill: null, mark: null, detail: null, seg: null };
   }
 
   const q = usage?.queries;
@@ -178,4 +179,47 @@ export function idleLine(last: SummaryV3["last_event"], now = new Date()): strin
   const days = Math.round((day(now) - day(d)) / 86400000);
   const when = days <= 0 ? "hoje" : days === 1 ? "ontem" : days < 7 ? `há ${days} dias` : `em ${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
   return `Nada pendente. Último registro: ${last.label.toLowerCase()}, ${when}.`;
+}
+
+/* ── Painel (item 23b): marcadores curtos. Cor é sinal: rosa fora da faixa, verde só sensor ao vivo, amarelo luz e
+   próxima ação; o resto é cinza. ── */
+
+export type PanelMarker = { text: string; tone: "plain" | "light" | "out" | "live" };
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const localDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+/** "hoje 08:10", "ontem", "há 3 dias", "19 out". */
+export function whenShort(iso: string | null | undefined, now = new Date()): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const days = Math.round((localDay(now) - localDay(d)) / 86400000);
+  if (days <= 0) return `hoje ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  if (days === 1) return "ontem";
+  if (days < 7) return `há ${days} dias`;
+  return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
+}
+
+/** O marcador sob o mostrador: fora da faixa (rosa) ou a origem e a hora; sensor de até 30 min é "ao vivo" (verde). */
+export function readingMarker(r: { value: number | null; source?: string | null; observed_at?: string | null }, out: "acima" | "abaixo" | null, now = new Date()): PanelMarker {
+  if (r.value == null) return { text: "Sem leitura", tone: "plain" };
+  if (out) return { text: `${out === "acima" ? "Acima" : "Abaixo"} da faixa`, tone: "out" };
+  const at = r.observed_at ? new Date(r.observed_at) : null;
+  const minutes = at ? Math.round((now.getTime() - at.getTime()) / 60000) : null;
+  if (r.source === "sensor" && minutes != null && minutes <= 30) return { text: `Sensor · há ${Math.max(1, minutes)} min`, tone: "live" };
+  const when = whenShort(r.observed_at, now);
+  return { text: [r.source === "sensor" ? "Sensor" : "Manual", when].filter(Boolean).join(" · "), tone: "plain" };
+}
+
+/** "Regar · última há 3 dias" para rega; senão a primeira frase da próxima ação. */
+export function nextMarker(next: { text: string; watering: boolean }, lastWatering: string | null | undefined, now = new Date()): string {
+  if (next.watering) {
+    const when = whenShort(lastWatering, now);
+    return when ? `Regar · última ${when.startsWith("hoje") ? "hoje" : when.startsWith("há") || when === "ontem" ? when : `em ${when}`}` : "Regar";
+  }
+  return next.text.split(/(?<=[.!?])\s/)[0].replace(/[.]$/, "");
+}
+
+/** "Último: ontem" a partir do último registro. */
+export function lastMarker(iso: string | null | undefined, now = new Date()): string | null {
+  const when = whenShort(iso, now);
+  return when ? `Último: ${when}` : null;
 }

@@ -55,6 +55,9 @@ export function accountPlanView(input: {
     return { ...view, notice: `Seus créditos acabaram.${renews ? ` Os do plano voltam em ${renews}.` : ""}`, primary: input.packs ? { label: "Comprar créditos", to: "packs" } : null };
   }
   const offer = canBuy && rec.plan_key && rec.reasons.length && input.recommendedLabel ? input.offerText : null;
+  // E4 (item 23b): conversas do mês esgotadas, com quando voltam.
+  const renewsQ = day(usage?.period.renews_at);
+  if (usage?.exhausted && usage.mode !== "credits") view.notice = `As conversas com o Bobby deste mês acabaram.${renewsQ ? ` Voltam em ${renewsQ}.` : ""}`;
   if (offer) return { ...view, offer, primary: { label: free ? "Fazer upgrade" : `Ver o plano ${input.recommendedLabel}`, to: "plans" } };
   // A1: Free com plano à venda acima, sem motivo: "Fazer upgrade" é o principal (decisão do item 19).
   if (free && canBuy && rec.plan_key) return { ...view, primary: { label: "Fazer upgrade", to: "plans" } };

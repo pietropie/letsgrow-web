@@ -27,6 +27,7 @@ test('Free at the limit with a plan for sale: the reason block and "Fazer upgrad
   const v = view(rec({ reasons: ['plants_limit', 'queries_limit'], covers: ['plants_limit', 'queries_limit'] }), q(1, 1, { exhausted: true }))
   assert.equal(v.offer, 'O Jardineiro cobre o que você atingiu: 2 plantas e 4 conversas com o Bobby por mês.')
   assert.deepEqual(v.primary, { label: 'Fazer upgrade', to: 'plans' })
+  assert.equal(v.notice, 'As conversas com o Bobby deste mês acabaram. Voltam em 1 dez.')
 })
 
 test('A2 paid: renewal line and "Gerenciar assinatura", no offer and no primary', () => {

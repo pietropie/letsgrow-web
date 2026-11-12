@@ -93,3 +93,16 @@ test('backend contract (optional until deploy): next_action filtered by tier, id
   assert.equal(h.idleLine({ id: 'e', event_type: 'note', label: 'Anotação', event_date: new Date(2026, 9, 30).toISOString() }, now), 'Nada pendente. Último registro: anotação, em 30 out.')
   assert.equal(h.idleLine(null, now), 'Nada pendente agora.')
 })
+
+test('panel markers (item 23b): reading origin, out of range, next action and last record', () => {
+  const now = new Date(2026, 10, 11, 12, 30)
+  assert.deepEqual(h.readingMarker({ value: null }, null, now), { text: 'Sem leitura', tone: 'plain' })
+  assert.deepEqual(h.readingMarker({ value: 60, source: 'manual', observed_at: new Date(2026, 10, 11, 12, 17).toISOString() }, 'acima', now), { text: 'Acima da faixa', tone: 'out' })
+  assert.deepEqual(h.readingMarker({ value: 25, source: 'manual', observed_at: new Date(2026, 10, 11, 12, 17).toISOString() }, null, now), { text: 'Manual · hoje 12:17', tone: 'plain' })
+  assert.deepEqual(h.readingMarker({ value: 25, source: 'sensor', observed_at: new Date(2026, 10, 11, 12, 26).toISOString() }, null, now), { text: 'Sensor · há 4 min', tone: 'live' })
+  assert.equal(h.readingMarker({ value: 25, source: 'sensor', observed_at: new Date(2026, 10, 9, 8).toISOString() }, null, now).tone, 'plain')
+  assert.equal(h.nextMarker({ text: 'x', watering: true }, new Date(2026, 10, 8).toISOString(), now), 'Regar · última há 3 dias')
+  assert.equal(h.nextMarker({ text: 'Temperatura em 32 °C. O que fazer?', watering: false }, null, now), 'Temperatura em 32 °C')
+  assert.equal(h.lastMarker(new Date(2026, 10, 10, 9).toISOString(), now), 'Último: ontem')
+  assert.equal(h.lastMarker(null, now), null)
+})
