@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import { PLAN_NAMES } from "@/components/account";
 import { BackLink, Button, ButtonLink, ConfirmDialog, FormError, Notice, PageTitle, Spinner, UnavailableNotice } from "@/components/ui";
 import { checkoutErrorMessage, startCheckout, useAccountBilling, useBillingCatalog, useCancelSubscription, useFeatureFlag, usePlanConfigs } from "@/lib/account";
-import { brl, normalizePlan, priceOf, type PlanLimits } from "@/lib/plans";
+import { brl, normalizePlan, periodPrice, yearlySaving, type Period, type PlanLimits } from "@/lib/plans";
 import { recommendationView, underOneRealADay, type RecommendationView } from "@/lib/recommendation";
 import { useRecommendation } from "@/lib/recommendation-client";
 import { routes } from "@/lib/routes";
@@ -21,10 +21,11 @@ const FAQ = [
 ] as const;
 
 const TAG = "font-label self-start rounded px-1.5 text-[13px] leading-5 whitespace-nowrap";
-const PAY = {
-  card: ["Cartão de crédito", "Renova todo mês até você cancelar."],
-  pix: ["Pix", "Paga 1 mês. Não renova sozinho; para continuar, pague de novo."],
-} as const;
+const PAY = (period: Period) => ({
+  card: ["Cartão de crédito", `Renova todo ${period === "yearly" ? "ano" : "mês"} até você cancelar.`],
+  pix: ["Pix", `Paga 1 ${period === "yearly" ? "ano" : "mês"}. Não renova sozinho; para continuar, pague de novo.`],
+}) as const;
+const PERIOD_WORD = { monthly: "mês", yearly: "ano" } as const;
 const limit = (n: number | null) => (n == null || n >= 9999 ? "Sem limite" : String(n));
 
 function Check() {
@@ -64,10 +65,13 @@ function UsageBlock({ view, planLabel }: { view: RecommendationView["usage"]; pl
 }
 
 /** O cartão do plano em destaque: escuro com motivo ("RECOMENDADO PARA VOCÊ"), claro sem motivo ("PRÓXIMO PASSO"). */
-function Highlight({ view, plan, price }: { view: NonNullable<RecommendationView["highlight"]>; plan: PlanLimits; price: number }) {
+function Highlight({ view, plan, price, period, saving, toggle }: {
+  view: NonNullable<RecommendationView["highlight"]>; plan: PlanLimits;
+  price: { total: number; months: number; perMonth: number }; period: Period; saving: number | null; toggle: React.ReactNode;
+}) {
   const d = view.dark;
   const muted = d ? "text-white/75" : "text-text-muted";
-  const cheap = underOneRealADay(price);
+  const cheap = underOneRealADay(price.perMonth);
   return (
     <section aria-label={`${view.tag === "PRÓXIMO PASSO" ? "Próximo passo" : "Recomendado para você"}: ${plan.label}`}
       className={`flex flex-col gap-5 rounded-[20px] p-5 md:p-7 ${d ? "bg-text-primary text-white" : "border-2 border-primary bg-surface text-text-primary"}`}>
@@ -78,7 +82,9 @@ function Highlight({ view, plan, price }: { view: NonNullable<RecommendationView
           <p className={`text-base leading-6 ${muted}`}>{view.reason}</p>
         </div>
         <div className="flex flex-col gap-1 md:items-end">
-          <p className="whitespace-nowrap"><span className="text-[40px] leading-[44px] font-black">{brl(price)}</span><span className={`text-base ${muted}`}> /mês</span></p>
+          {toggle}
+          <p className="whitespace-nowrap"><span className="text-[40px] leading-[44px] font-black">{brl(price.perMonth)}</span><span className={`text-base ${muted}`}> /mês</span></p>
+          <p className={`text-sm leading-5 ${muted}`}>{period === "yearly" ? `Cobrado ${brl(price.total)} por ano.` : `Cobrado ${brl(price.total)} por mês.`}{period === "yearly" && saving ? ` Economia de ${brl(saving)} no ano.` : ""}</p>
           <p className={`text-sm leading-5 ${muted}`}><span className="md:hidden">No cartão ou no Pix. </span>{cheap ? "Menos de R$ 1 por dia." : ""}<span className="md:hidden"> Cancele quando quiser.</span></p>
         </div>
       </div>
@@ -126,6 +132,7 @@ function Plans() {
   const usage = useUsage();
   const recommendation = useRecommendation();
   const [method, setMethod] = useState<"card" | "pix">("card");
+  const [period, setPeriod] = useState<Period>("monthly");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -140,14 +147,19 @@ function Plans() {
   const rec = recommendation.status === "ok" ? recommendation.rec : null;
   const recPlan = rec?.plan_key ? all.find(p => p.plan_key === normalizePlan(rec.plan_key!)) : undefined;
   const view = rec && mine ? recommendationView(rec, usage.status === "ok" ? usage.usage : null, mine.label, recPlan?.label ?? null) : null;
-  const price = recPlan && !byPlay ? priceOf(catalog.data, recPlan.plan_key, "monthly") : null;
-  const offer = view?.highlight && recPlan && price != null ? { plan: recPlan, price, highlight: view.highlight } : null;
+  // Mensal e anual (pedido do usuário, 12 nov): o seletor só aparece quando o plano tem os dois no catálogo.
+  const monthly = recPlan && !byPlay ? periodPrice(catalog.data, recPlan.plan_key, "monthly") : null;
+  const yearly = recPlan && !byPlay ? periodPrice(catalog.data, recPlan.plan_key, "yearly") : null;
+  const chosen: Period = period === "yearly" && yearly ? "yearly" : monthly ? "monthly" : yearly ? "yearly" : "monthly";
+  const price = chosen === "yearly" ? yearly : monthly;
+  const saving = recPlan ? yearlySaving(catalog.data, recPlan.plan_key) : null;
+  const offer = view?.highlight && recPlan && price ? { plan: recPlan, price, highlight: view.highlight } : null;
 
   async function buy() {
     if (!offer) return;
     setError(""); setBusy(true);
     try {
-      const res = await startCheckout({ kind: "subscription", plan_key: offer.plan.plan_key, period: "monthly", method });
+      const res = await startCheckout({ kind: "subscription", plan_key: offer.plan.plan_key, period: chosen, method });
       if (!res.checkout_url) throw new Error("O Mercado Pago não devolveu o endereço do pagamento. Nada foi cobrado.");
       window.location.assign(res.checkout_url);
     } catch (e) {
@@ -186,7 +198,17 @@ function Plans() {
 
         {offer && mine && (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-6">
-            <div className="lg:col-start-1"><Highlight view={offer.highlight} plan={offer.plan} price={offer.price} /></div>
+            <div className="lg:col-start-1"><Highlight view={offer.highlight} plan={offer.plan} price={offer.price} period={chosen} saving={saving}
+              toggle={monthly && yearly && (
+                <div role="radiogroup" aria-label="Período" className={`flex self-start rounded-lg border p-[3px] md:self-end ${offer.highlight.dark ? "border-white/40" : "border-display"}`}>
+                  {(["monthly", "yearly"] as const).map(p => (
+                    <button key={p} type="button" role="radio" aria-checked={chosen === p} onClick={() => setPeriod(p)}
+                      className={`font-label min-h-9 rounded-md px-3 text-sm uppercase cursor-pointer ${chosen === p ? (offer.highlight.dark ? "bg-white text-text-primary" : "bg-display text-surface") : ""}`}>
+                      {p === "monthly" ? "Mensal" : `Anual${saving ? ` · −${brl(saving)}` : ""}`}
+                    </button>
+                  ))}
+                </div>
+              )} /></div>
 
             <section aria-label="Como você quer pagar" className="flex flex-col gap-3 rounded-2xl border border-stroke bg-surface p-4 md:p-5 lg:col-start-2 lg:row-start-1">
               <h2 className="font-label text-xs leading-4 text-text-secondary">COMO VOCÊ QUER PAGAR</h2>
@@ -197,12 +219,12 @@ function Plans() {
                     <span aria-hidden className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2 ${method === key ? "border-primary" : "border-text-muted"}`}>
                       {method === key && <span className="size-2.5 rounded-full bg-primary" />}
                     </span>
-                    <span className="flex flex-col gap-0.5"><span className="text-base leading-6 font-semibold text-text-primary">{PAY[key][0]}</span><span className="text-sm leading-5 text-text-muted">{PAY[key][1]}</span></span>
+                    <span className="flex flex-col gap-0.5"><span className="text-base leading-6 font-semibold text-text-primary">{PAY(chosen)[key][0]}</span><span className="text-sm leading-5 text-text-muted">{PAY(chosen)[key][1]}</span></span>
                   </button>
                 ))}
               </div>
               <div className="hidden flex-col gap-3 md:flex">
-                <p className="flex items-center justify-between pt-1 text-base text-text"><span>{offer.plan.label}, mensal</span><span className="text-lg font-extrabold text-text-primary">{brl(offer.price)}</span></p>
+                <p className="flex items-center justify-between pt-1 text-base text-text"><span>{offer.plan.label}, {chosen === "yearly" ? "anual" : "mensal"}</span><span className="text-lg font-extrabold text-text-primary">{brl(offer.price.total)}<span className="text-sm font-normal text-text-muted"> /{PERIOD_WORD[chosen]}</span></span></p>
                 <FormError message={error} />
                 {cta}
                 <p className="text-xs leading-[18px] text-text-muted">{fine} Cancele a renovação nesta tela, em Conta › Planos.</p>

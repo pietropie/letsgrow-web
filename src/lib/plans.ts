@@ -23,3 +23,23 @@ export function priceOf(catalog: Catalog | null | undefined, planKey: string, pe
   if (!catalog?.web_enabled) return null;
   return catalog.plans.find(p => p.plan_key === planKey)?.periods.find(x => x.period === period)?.price_brl ?? null;
 }
+
+export type Period = "monthly" | "yearly";
+/**
+ * O preço de um período (pedido do usuário, 12 nov): `price_brl` é o total cobrado e `months` quantos meses cobre. O
+ * destaque é o valor por mês (total ÷ meses); o total real aparece sempre embaixo, porque o Mercado Pago cobra de uma vez.
+ */
+export function periodPrice(catalog: (Catalog & { plans: (CatalogPlan & { periods: { months?: number }[] })[] }) | null | undefined, planKey: string, period: Period): { total: number; months: number; perMonth: number } | null {
+  if (!catalog?.web_enabled) return null;
+  const p = catalog.plans.find(x => x.plan_key === planKey)?.periods.find(x => x.period === period);
+  if (!p || p.price_brl == null) return null;
+  const months = p.months && p.months > 0 ? p.months : period === "yearly" ? 12 : 1;
+  return { total: p.price_brl, months, perMonth: Math.round((p.price_brl / months) * 100) / 100 };
+}
+/** Quanto o anual economiza no ano em relação a 12 mensais; null se não houver os dois ou não houver economia. */
+export function yearlySaving(catalog: Parameters<typeof periodPrice>[0], planKey: string): number | null {
+  const m = periodPrice(catalog, planKey, "monthly"), y = periodPrice(catalog, planKey, "yearly");
+  if (!m || !y) return null;
+  const save = Math.round((m.perMonth * 12 - y.total) * 100) / 100;
+  return save > 0 ? save : null;
+}
