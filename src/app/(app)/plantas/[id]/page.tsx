@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { type PanelTone } from "@/components/grows/instruments";
 import { SegmentedDisplay } from "@/components/home/blocks";
+import { BobbyIcon } from "@/components/bobby-icon";
 import { CornerLink, Lamp, Marker, PanelButton, PanelCard, PanelTitle, type LampState } from "@/components/panel";
 import { NewEventPanel } from "@/components/plants/new-event-panel";
 import { ActionRow, BackLink, Button, ButtonLink, Notice, PageSubtitle, PageTitle, Spinner } from "@/components/ui";
@@ -215,7 +216,7 @@ export default function PlantPage() {
   );
   const bobbyCard = (
     <PanelCard tone="bobby" label="Acompanhamento do Bobby">
-      <div className="flex items-center gap-2"><img src="/figma/bobby-28.svg" alt="" /><h2 className="font-label text-lg leading-6 text-display">Acompanhamento do Bobby</h2></div>
+      <div className="flex items-center gap-2"><BobbyIcon size={28} className="shrink-0 text-display" /><h2 className="font-label text-lg leading-6 text-display">Acompanhamento do Bobby</h2></div>
       <p className="text-[15px] leading-[21px] text-text">{alert?.message ?? tip.data?.tip ?? "Nenhuma observação retornada para esta planta. Você pode conversar sobre os registros com o Bobby."}</p>
       <div className="flex gap-2.5">
         <PanelButton kind="clear" label="Ver observação" href={routes.bobbyObservation(plant.id)} />

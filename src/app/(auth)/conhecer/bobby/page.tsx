@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EntryPage } from "@/components/entry-page";
+import { BobbyIcon } from "@/components/bobby-icon";
 import { ButtonLink, PageSubtitle } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Conheça o Bobby" };
@@ -22,7 +23,7 @@ export default function BobbyIntroPage() {
       <div className="flex items-center gap-3"><img src="/figma/bobby-calm.png" alt="" width={40} height={53} /><h1 className="flex-1 text-[22px] leading-7 font-black text-text">Conheça o Bobby</h1></div>
       <PageSubtitle>Assistente de IA do LetsGrow</PageSubtitle>
       <section className="flex flex-col gap-4 rounded-2xl border-[0.5px] border-stroke bg-surface p-3">
-        <div className="flex items-center gap-2"><img src="/figma/bobby-panel.svg" alt="" /><span className="font-label text-base text-display">CONHEÇA O BOBBY</span></div>
+        <div className="flex items-center gap-2"><BobbyIcon size={28} className="shrink-0 text-display" /><span className="font-label text-base text-display">CONHEÇA O BOBBY</span></div>
         <div className="flex flex-col gap-2">
           <h2 className="font-label text-xl leading-[26px] text-text">Uma conversa com contexto</h2>
           <p className="text-base leading-6 text-text">O Bobby pode organizar e resumir registros. Ele mostra a base usada e avisa quando não há informação suficiente.</p>

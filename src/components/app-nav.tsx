@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BobbyIcon } from "@/components/bobby-icon";
 import { usePathname } from "next/navigation";
 import { Brand } from "./ui";
 
@@ -16,6 +17,7 @@ const AREAS = [
 /* eslint-disable @next/next/no-img-element */
 function AreaIcon({ icon, active }: { icon: string; active: boolean }) {
   const suffix = active ? "-active" : "";
+  if (icon === "tab-bobby") return <BobbyIcon filled={active} size={24} className="text-display" />;
   if (icon === "account") {
     return (
       <span className="flex h-[22px] w-[22px] flex-col items-center justify-between">

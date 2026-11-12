@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { SegmentedDisplay } from "@/components/home/blocks";
+import { BobbyIcon } from "@/components/bobby-icon";
 import { CornerLink, Lamp, Marker, PanelButton, PanelCard, PanelLabel, PanelTitle, SegMeter, type LampState, type MarkerTone } from "@/components/panel";
 import type { Meter, PlanBandView, Suggestion } from "@/lib/home-v3";
 import type { AttentionItem } from "@/shared/lib/homeClimate";
@@ -218,7 +219,7 @@ export function BobbyPanel(p: {
   return (
     <PanelCard tone="bobby" label="Bobby">
       <div className="flex items-center gap-2.5">
-        <img src="/figma/bobby-calm.png" alt="" width={28} height={36} className="h-9 w-7 object-contain" />
+        <BobbyIcon size={30} className="shrink-0 text-display" />
         <h2 className="font-label flex-1 text-lg leading-6 text-display uppercase">Bobby · assistente de IA</h2>
       </div>
       <p className="text-[17px] leading-6 font-bold text-text-primary">{p.title}</p>
