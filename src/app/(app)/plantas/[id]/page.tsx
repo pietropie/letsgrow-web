@@ -5,16 +5,20 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { PanelTag, type PanelTone } from "@/components/grows/instruments";
+import { type PanelTone } from "@/components/grows/instruments";
+import { SegmentedDisplay } from "@/components/home/blocks";
+import { CornerLink, Lamp, Marker, PanelButton, PanelCard, PanelTitle, type LampState } from "@/components/panel";
 import { NewEventPanel } from "@/components/plants/new-event-panel";
 import { ActionRow, BackLink, Button, ButtonLink, Notice, PageSubtitle, PageTitle, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
+import { backendNextAction, nextMarker, readingMarker, type SummaryV3 } from "@/lib/home-v3";
 import { useBobAlerts, useEvents, useGrows, usePlant, usePlantSummaries } from "@/lib/hooks";
 import { routes } from "@/lib/routes";
 import { phases } from "@/shared/constants/theme";
 import { dayMonthTime, daysSinceDate, shortDayMonth } from "@/shared/lib/dates";
 import { PHASE_ICON_LABEL, dayCount, dayNumber, eventTypeLabel, eventsInLastDays, hasPlantDetails, isFeeding, isWatering, latest, nextPhase, percentText, phaseIcon, phaseStart, photoStats, shortPlantName, sortedEvents, wateringInterval } from "@/shared/lib/plantFacts";
 import { plantDisplayName, plantIllustration } from "@/shared/lib/plantIdentity";
+import { environmentMeasurement } from "@/shared/lib/measurements";
 import type { BobTipResponse, StrainResponse } from "@/shared/types/api";
 
 const STRAIN_TYPE: Record<string, string> = { photo: "FOTOPERIÓDICA", auto: "AUTOFLORESCENTE" };
@@ -34,7 +38,10 @@ function Metric({ title, icon, value, note, tone, valueTone = "var(--color-bg)" 
   );
 }
 
-/** Ficha da planta (Figma 2160:6740 e 2160:6828, planta ainda sem detalhes), web do letsgrow-mobile/app/(app)/plants/[plantId].tsx. */
+/**
+ * Página da planta no painel (UX itens 24 e 24b; celular D2 2427:23864, web W6p 2429:24086), sobre a ficha (Figma 2160:6740;
+ * 2160:6828 sem detalhes). Um cartão por bloco, com "Próxima ação" no topo; fase e registros são os blocos de sempre.
+ */
 export default function PlantPage() {
   const { id: plantId } = useParams<{ id: string }>();
   const [recording, setRecording] = useState(false);
@@ -104,68 +111,129 @@ export default function PlantPage() {
   const temperature = summary?.temperature?.value ?? summary?.last_temperature_c ?? null;
   const humidity = summary?.humidity?.value ?? summary?.last_humidity_rh ?? null;
   const v = (n: string) => `var(--color-${n})`;
-  const soft = "flex min-h-12 items-center justify-center gap-2.5 rounded-lg border-[0.5px] border-stroke-soft bg-surface px-4 py-1.5 text-base font-semibold text-display shadow-[4px_4px_4px_rgba(0,0,0,0.1)] hover:bg-surface-high";
 
+  // Item 24 (W6p): "Próxima ação" no topo, um cartão por bloco, as peças do painel.
+  const s = summary as (typeof summary & SummaryV3) | undefined;
+  const fromBackend = backendNextAction(s);
+  const nextLabel = fromBackend ? nextMarker(fromBackend, s?.last_watering_at) : alert ? nextMarker({ text: alert.message, watering: alert.action === "watering" }, s?.last_watering_at) : null;
+  const nextHref = fromBackend ? (fromBackend.watering ? diaryHref : routes.bobbyObservation(plant.id)) : alert ? routes.bobbyObservation(plant.id) : null;
+  const base = interval
+    ? `Base: ${interval.count} regas no diário · intervalo médio de ${interval.days} ${interval.days === 1 ? "dia" : "dias"}.${watering ? ` A última foi ${relative(watering.event_date)?.toLowerCase()}.` : ""}`
+    : fromBackend ? fromBackend.text : alert?.message ?? (last ? `Último registro: ${(eventTypeLabel[last.event_type] ?? "registro").toLowerCase()}, ${relative(last.event_date)?.toLowerCase()}.` : "Nenhum registro ainda. O primeiro registro ajuda o Bobby a acompanhar a planta.");
+  const cover = s?.cover_image_url ?? null;
+  const realPhoto = !!cover && cover === (s?.latest_photo_url ?? null);
+  const lamp: LampState = nextLabel ? "attention" : "ok";
+  const growTemp = environmentMeasurement(grow?.env, "temperature"), growRh = environmentMeasurement(grow?.env, "humidity");
+  const rowLink = (title: string, body: string, href: string | null) => (
+    <li key={title} className="border-b border-stroke last:border-b-0">
+      <Link href={href ?? "#"} className="flex min-h-16 items-center gap-3 py-2.5 hover:bg-surface-high">
+        <span className="flex flex-1 flex-col gap-0.5"><span className="text-base leading-6 font-semibold text-text-primary">{title}</span><span className="text-sm leading-5 text-text-secondary">{body}</span></span>
+        <span aria-hidden className="text-text-primary">›</span>
+      </Link>
+    </li>
+  );
+
+  const photoCard = (
+    <PanelCard label={name}>
+      <Link href={routes.plantPhotos(plant.id)} aria-label="Fotos da planta" className="flex h-[240px] items-center justify-center">
+        <img src={cover || summary?.strain_image_url || `/figma/plant-${plantIllustration(plant.id)}.png`} alt="" className={`h-[240px] w-full rounded-lg ${realPhoto ? "object-cover" : "object-contain"}`} />
+      </Link>
+      {!realPhoto && <p className="text-sm text-text-muted">Imagem ilustrativa</p>}
+      <div className="flex items-center gap-2.5"><Lamp state={lamp} /><h1 id="plant-name" className="font-label text-2xl leading-7 text-text-primary">{name}</h1></div>
+      <div className="flex flex-wrap gap-1.5">{tags.filter(([label]) => label).map(([label]) => <Marker key={label}>{label}</Marker>)}</div>
+    </PanelCard>
+  );
+  const growCard = grow && (
+    <PanelCard label={`Ambiente ${grow.name}`}>
+      <PanelTitle divider lamp={growTemp.value == null && growRh.value == null ? "none" : "ok"} right={<CornerLink href={routes.growPanel(grow.id)}>Abrir painel</CornerLink>}>{grow.name}</PanelTitle>
+      <div className="flex flex-wrap items-center gap-2">
+        <SegmentedDisplay size="small" value={growTemp.value == null ? null : Math.round(growTemp.value)} unit="°" label="Temperatura do ambiente" />
+        <SegmentedDisplay size="small" value={growRh.value == null ? null : Math.round(growRh.value)} unit="%" label="Umidade do ambiente" />
+        {(() => { const m = readingMarker(growTemp.value != null ? growTemp : growRh, null); return <Marker tone={m.tone}>{m.text}</Marker>; })()}
+      </div>
+    </PanelCard>
+  );
+  const nextCard = (
+    <PanelCard label="Próxima ação">
+      <PanelTitle right={nextLabel ? (nextHref ? <Link href={nextHref} className="hover:opacity-80"><Marker tone="light">{nextLabel}</Marker></Link> : <Marker tone="light">{nextLabel}</Marker>) : <Marker>Nada pendente</Marker>}>Próxima ação</PanelTitle>
+      <p className="text-[15px] leading-[21px] text-text">{base}</p>
+      <div className="flex gap-2.5">
+        <PanelButton kind="clear" label="Bobby" href={routes.bobbyWith({ plantId: plant.id })} />
+        {add && <PanelButton label="Registrar" onClick={() => setRecording(true)} />}
+      </div>
+    </PanelCard>
+  );
+  const phaseCard = (
+    <PanelCard label="Fase">
+      <div className="flex items-center justify-between"><h2 className="font-label text-lg text-display uppercase">Fase</h2><Link href={routes.plantInfo(plant.id)} aria-label="Editar fase" className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-bg"><img src="/figma/edit.svg" alt="" /></Link></div>
+      <div className="flex items-stretch gap-2">
+        <div className="flex min-w-[53px] flex-col items-center justify-center">{icon && <img src={`/figma/phase-${icon}.svg`} alt="" />}<span className="text-sm text-display">{icon ? PHASE_ICON_LABEL[icon] : PHASE_SHORT[plant.current_phase] ?? "—"}</span></div>
+        <div className="flex w-[55px] flex-col items-center justify-center gap-0.5 rounded-lg border border-display py-1"><span className="text-sm">TEMPO</span><span className="h-px self-stretch bg-stroke" /><span className="text-[26px] leading-[31px] font-black text-display">{phaseDays ?? "—"}</span><span className="text-sm">{phaseDays === 1 ? "dia" : "dias"}</span></div>
+        <div className="flex flex-1 flex-col items-center gap-1 overflow-hidden rounded-lg border border-display">
+          <div className="flex gap-1 pt-1.5 text-sm"><span>DIAS</span><span>{expected ? `${phaseDays} de ${expected}` : "sem estimativa"}</span></div>
+          <span className="h-px self-stretch bg-stroke" />
+          <div className="flex flex-wrap justify-center gap-[3px] px-1 pb-1.5" aria-hidden>{Array.from({ length: 28 }, (_, i) => <span key={i} className="h-[9px] w-[9px] rounded-full" style={{ background: expected && phaseDays && i < Math.round((phaseDays / expected) * 28) ? v("display") : v("stroke-soft") }} />)}</div>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {next && <p className="flex flex-1 items-center gap-1.5"><span className={tech}>PRÓXIMA FASE:</span><Marker tone="light">{phases[next]?.label}</Marker></p>}
+        <div className="flex"><PanelButton kind="clear" label="Ver diário" href={diaryHref} /></div>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {plant.germination_date && <><Marker>Germinou {ddmm(plant.germination_date)}</Marker><Marker>{dayCount(lifeDays!)} de vida</Marker></>}
+        <Marker>No app: {dayCount(appDays)}</Marker>
+      </div>
+    </PanelCard>
+  );
+  const linksCard = (
+    <PanelCard label="Diário e arquivo">
+      <ul className="-my-1 flex flex-col">
+        {rowLink("Diário completo", `${events.length} ${events.length === 1 ? "registro" : "registros"} desta planta.`, diaryHref)}
+        {rowLink("Fotos da planta", photos.count ? `${photos.count} ${photos.count === 1 ? "imagem" : "imagens"} no histórico` : "Nenhuma imagem no histórico", routes.plantPhotos(plant.id))}
+        {rowLink(add ? "Marcar como colhida ou arquivar" : "Informações da planta", add ? "Nas informações da planta. O histórico continua disponível." : "Detalhes opcionais · editar", routes.plantInfo(plant.id))}
+      </ul>
+    </PanelCard>
+  );
+  const recordsCard = (
+    <PanelCard label="Registros">
+      <div className="flex items-center justify-between"><h2 className="font-label text-lg text-display uppercase">Registros</h2><Link href={diaryHref} aria-label="Abrir diário" className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-bg"><img src="/figma/edit.svg" alt="" /></Link></div>
+      <div className="flex items-center gap-1.5">
+        <Metric title="REGA" icon={<img src="/figma/watering.svg" alt="" />} value={watering?.water_volume_ml != null ? `${watering.water_volume_ml}ml` : "—"} note={relative(watering?.event_date) ?? "SEM REGISTRO"} tone={watering ? v("source-highlight") : v("bg")} />
+        <span className="w-px self-stretch bg-stroke" />
+        <Metric title="NUTRI" icon={<img src="/figma/fert.svg" alt="" />} value={feeding?.ppm != null ? `${feeding.ppm}ppm` : "—"} note={relative(feeding?.event_date) ?? "SEM REGISTRO"} tone={feeding ? v("source-highlight") : v("bg")} />
+      </div>
+      <div className="h-px bg-stroke" />
+      <div className="flex items-center gap-1.5">
+        <Metric title="VPD" icon={<img src="/figma/light.svg" alt="" width={37} height={35} />} value="—" note="SEM LEITURA" tone={v("bg")} />
+        <span className="w-px self-stretch bg-stroke" />
+        <Metric title="AMBIENTE" icon={<img src="/figma/temperature.svg" alt="" width={41} height={38} />} value={temperature != null ? `${Math.round(temperature)}º C` : "—"} note={humidity != null ? `${Math.round(humidity)}% UR` : "SEM LEITURA"}
+          tone={humidity != null ? v("state-stable") : v("bg")} valueTone={temperature != null ? v("state-alert") : v("bg")} />
+      </div>
+      <div className="flex flex-wrap gap-1.5"><Marker>{week} {week === 1 ? "registro" : "registros"} na semana</Marker>{last && <Marker>Último: {dayMonthTime(last.event_date, " ")}</Marker>}</div>
+      {add && <div className="flex"><PanelButton kind="clear" label="Novo registro" onClick={() => setRecording(true)} /></div>}
+    </PanelCard>
+  );
+  const bobbyCard = (
+    <PanelCard tone="bobby" label="Acompanhamento do Bobby">
+      <div className="flex items-center gap-2"><img src="/figma/bobby-28.svg" alt="" /><h2 className="font-label text-lg leading-6 text-display">Acompanhamento do Bobby</h2></div>
+      <p className="text-[15px] leading-[21px] text-text">{alert?.message ?? tip.data?.tip ?? "Nenhuma observação retornada para esta planta. Você pode conversar sobre os registros com o Bobby."}</p>
+      <div className="flex gap-2.5">
+        <PanelButton kind="clear" label="Ver observação" href={routes.bobbyObservation(plant.id)} />
+        <PanelButton kind="clear" label="Bobby" href={routes.bobbyWith({ plantId: plant.id })} />
+      </div>
+    </PanelCard>
+  );
+
+  // W6p: foto e ambiente | próxima ação, fase e diário | registros e Bobby. Celular (D2): a mesma ordem, empilhada.
   return (
-    <div className="flex max-w-[600px] flex-col gap-4">
+    <>
       <BackLink fallback={routes.plants()} />
-      <article className="flex flex-col gap-1 rounded-2xl border-[0.5px] border-stroke bg-surface px-2.5 py-4" aria-labelledby="plant-name">
-        <div className="flex h-[217px] items-center justify-center"><img src={summary?.strain_image_url || `/figma/plant-${plantIllustration(plant.id)}.png`} alt="" className="h-[217px] w-[217px] object-contain" /></div>
-        <p className="text-sm text-text-muted">Imagem ilustrativa</p>
-        <div className="flex items-center gap-1.5"><img src="/figma/leaf-small.svg" alt="" /><h1 id="plant-name" className="font-label text-xl leading-6 text-display">{name}</h1></div>
-        <div className="flex flex-wrap gap-1 pt-0.5 pb-1">{tags.filter(([label]) => label).map(([label, tone]) => <PanelTag key={label} label={label} tone={tone} />)}</div>
-        <div className="h-px bg-stroke" />
-        <div className="flex flex-col gap-2.5">
-          <div className="mt-2 flex flex-col gap-1.5 rounded-lg bg-[#E1EBE6] p-2">
-            <div className="flex items-center gap-1"><img src="/figma/bobby-28.svg" alt="" /><h2 className="font-label text-xl leading-6 text-display">Acompanhamento do Bobby</h2></div>
-            <p className="text-base leading-6 text-display">{alert?.message ?? tip.data?.tip ?? "Nenhuma observação retornada para esta planta. Você pode conversar sobre os registros com o Bobby."}</p>
-            <Link href={routes.bobbyObservation(plant.id)!} className={soft}>VER OBSERVAÇÃO</Link>
-          </div>
-          <div className="h-px bg-stroke" />
-          <section className="flex flex-col gap-2" aria-label="Fase">
-            <div className="flex items-center justify-between"><h2 className="font-label text-base text-display">FASE</h2><Link href={routes.plantInfo(plant.id)} aria-label="Editar fase" className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-bg"><img src="/figma/edit.svg" alt="" /></Link></div>
-            <div className="flex items-stretch gap-2">
-              <div className="flex min-w-[53px] flex-col items-center justify-center">{icon && <img src={`/figma/phase-${icon}.svg`} alt="" />}<span className="text-sm text-display">{icon ? PHASE_ICON_LABEL[icon] : PHASE_SHORT[plant.current_phase] ?? "—"}</span></div>
-              <div className="flex w-[55px] flex-col items-center justify-center gap-0.5 rounded-lg border border-display py-1"><span className="text-sm">TEMPO</span><span className="h-px self-stretch bg-stroke" /><span className="text-[26px] leading-[31px] font-black text-display">{phaseDays ?? "—"}</span><span className="text-sm">{phaseDays === 1 ? "dia" : "dias"}</span></div>
-              <div className="flex flex-1 flex-col items-center gap-1 overflow-hidden rounded-lg border border-display">
-                <div className="flex gap-1 pt-1.5 text-sm"><span>DIAS</span><span>{expected ? `${phaseDays} de ${expected}` : "sem estimativa"}</span></div>
-                <span className="h-px self-stretch bg-stroke" />
-                <div className="flex flex-wrap justify-center gap-[3px] px-1 pb-1.5" aria-hidden>{Array.from({ length: 28 }, (_, i) => <span key={i} className="h-[9px] w-[9px] rounded-full" style={{ background: expected && phaseDays && i < Math.round((phaseDays / expected) * 28) ? v("display") : v("stroke-soft") }} />)}</div>
-              </div>
-            </div>
-            {next && <p className="flex items-center justify-center gap-1"><span className={tech}>PRÓXIMA FASE:</span><span className="bg-state-alert text-base font-semibold text-display">{phases[next]?.label.toUpperCase()}</span><PanelTag label="SEQUÊNCIA" /></p>}
-            <div className="flex flex-wrap gap-1">
-              {plant.germination_date && <><span className={`grow bg-state-stable px-1.5 text-center ${tech}`}>GERMINOU {ddmm(plant.germination_date)}</span><span className={`grow bg-bg px-1.5 text-center ${tech}`}>{dayCount(lifeDays!).toUpperCase()} DE VIDA</span></>}
-              <span className={`grow bg-bg px-1.5 text-center ${tech}`}>NO APP: {dayCount(appDays).toUpperCase()}</span>
-            </div>
-          </section>
-          <div className="h-px bg-stroke" />
-          <section className="flex flex-col gap-1.5" aria-label="Registros">
-            <div className="flex items-center justify-between"><h2 className="font-label text-base text-display">REGISTROS</h2><Link href={diaryHref} aria-label="Abrir diário" className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-bg"><img src="/figma/edit.svg" alt="" /></Link></div>
-            <div className="flex items-center gap-1.5">
-              <Metric title="REGA" icon={<img src="/figma/watering.svg" alt="" />} value={watering?.water_volume_ml != null ? `${watering.water_volume_ml}ml` : "—"} note={relative(watering?.event_date) ?? "SEM REGISTRO"} tone={watering ? v("source-highlight") : v("bg")} />
-              <span className="w-px self-stretch bg-stroke" />
-              <Metric title="NUTRI" icon={<img src="/figma/fert.svg" alt="" />} value={feeding?.ppm != null ? `${feeding.ppm}ppm` : "—"} note={relative(feeding?.event_date) ?? "SEM REGISTRO"} tone={feeding ? v("source-highlight") : v("bg")} />
-            </div>
-            <div className="h-px bg-stroke" />
-            <div className="flex items-center gap-1.5">
-              <Metric title="VPD" icon={<img src="/figma/light.svg" alt="" width={37} height={35} />} value="—" note="SEM LEITURA" tone={v("bg")} />
-              <span className="w-px self-stretch bg-stroke" />
-              <Metric title="AMBIENTE" icon={<img src="/figma/temperature.svg" alt="" width={41} height={38} />} value={temperature != null ? `${Math.round(temperature)}º C` : "—"} note={humidity != null ? `${Math.round(humidity)}% UR` : "SEM LEITURA"}
-                tone={humidity != null ? v("state-stable") : v("bg")} valueTone={temperature != null ? v("state-alert") : v("bg")} />
-            </div>
-            {interval && <p className="flex items-center gap-1.5"><PanelTag tone="alert" label={`INTERVALO MÉDIO: ${interval.days} ${interval.days === 1 ? "DIA" : "DIAS"}`} /><span className="flex-1 text-sm">Calculado a partir de {interval.count} regas registradas no diário.</span></p>}
-            <div className="flex flex-wrap gap-1"><PanelTag tone="stable" label={`${week} ${week === 1 ? "REGISTRO" : "REGISTROS"} NA SEMANA`} />{last && <PanelTag label={`ÚLTIMO: ${dayMonthTime(last.event_date, " ")?.toUpperCase()}`} />}</div>
-          </section>
-        </div>
-        <div className="flex flex-col gap-2 pt-1">
-          {add && <button type="button" onClick={() => setRecording(true)} className="flex min-h-12 items-center justify-center gap-2.5 rounded-lg bg-primary px-4 text-base font-semibold text-white hover:bg-primary-dark cursor-pointer">NOVO REGISTRO <img src="/figma/arrow-right.svg" alt="" /></button>}
-          <Link href={diaryHref} className={soft}>ABRIR DIÁRIO · {events.length} {events.length === 1 ? "REGISTRO" : "REGISTROS"} <img src="/figma/chevron-right.svg" alt="" /></Link>
-        </div>
-      </article>
-      <ActionRow title="Fotos da planta" body={photos.count ? `${photos.count} ${photos.count === 1 ? "imagem" : "imagens"} no histórico` : "Nenhuma imagem no histórico"} href={routes.plantPhotos(plant.id)} />
-      <ActionRow title="Informações da planta" body="Detalhes opcionais · editar" href={routes.plantInfo(plant.id)} />
+      <div className="flex flex-col gap-[14px] lg:grid lg:grid-cols-3 lg:items-start lg:gap-5">
+        <div className="flex flex-col gap-[14px] lg:gap-5">{photoCard}{growCard}</div>
+        <div className="flex flex-col gap-[14px] lg:gap-5">{nextCard}{phaseCard}{linksCard}</div>
+        <div className="flex flex-col gap-[14px] lg:gap-5">{recordsCard}{bobbyCard}</div>
+      </div>
       {panel}
-    </div>
+    </>
   );
 }

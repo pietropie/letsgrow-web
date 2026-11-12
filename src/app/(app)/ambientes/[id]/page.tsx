@@ -7,30 +7,26 @@ import { useParams, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { SegmentedDisplay } from "@/components/home/blocks";
 import { GrowPicker } from "@/components/home/place-flow";
-import { EnvironmentReadings, ExhaustDimmer, PanelTag, PhotoperiodDial, PpfdGauge, type PanelTone } from "@/components/grows/instruments";
-import { ActionRow, BackLink, Button, PageHeader, Spinner } from "@/components/ui";
+import { ExhaustDimmer, PanelTag, PhotoperiodDial, PpfdGauge, type PanelTone } from "@/components/grows/instruments";
+import { CornerLink, Lamp, Marker, PanelButton, PanelCard, PanelLabel, PanelTitle, type LampState } from "@/components/panel";
+import { BackLink, Button, Spinner } from "@/components/ui";
+import { backendNextAction, nextAction, nextMarker, readingMarker, type SummaryV3 } from "@/lib/home-v3";
 import { api } from "@/lib/api";
-import { useBobAlerts, useGrow, useGrowPlants, useGrows, usePlantSummaries, useRememberedGrow } from "@/lib/hooks";
+import { useBobAlerts, useGrow, useGrowPlants, useGrows, useMinuteOfDay, usePlantSummaries, useRememberedGrow } from "@/lib/hooks";
 import { routes } from "@/lib/routes";
-import { phases } from "@/shared/constants/theme";
 import { dayMonthTime } from "@/shared/lib/dates";
 import { hasExhaust } from "@/shared/lib/exhaustDimmer";
 import { carbonFilterLabel, exhaustDescription, fans, growTypeLabel, lightDescription, locationLabel } from "@/shared/lib/growEquipment";
-import { growChoiceLine } from "@/shared/lib/homeClimate";
-import { durationLabel, formatClock, offMinute, photoperiodText, scheduleFromGrow } from "@/shared/lib/lightSchedule";
+import { attentionItems, growChoiceLine } from "@/shared/lib/homeClimate";
+import { dialProgress, durationLabel, formatClock, offMinute, photoperiodText, scheduleFromGrow } from "@/shared/lib/lightSchedule";
 import { environmentMeasurement } from "@/shared/lib/measurements";
 import { phaseDay } from "@/shared/lib/phaseDay";
 import { plantCount } from "@/shared/lib/plantFacts";
-import { plantDisplayName, plantIllustration } from "@/shared/lib/plantIdentity";
+import { plantDisplayName } from "@/shared/lib/plantIdentity";
 import type { EquipmentKind } from "@/shared/lib/equipmentForms";
 import type { GrowResponse } from "@/shared/types/api";
 
 const PHASE_TAG: Record<string, string> = { germination: "GERMINAÇÃO", seedling: "MUDA", veg: "VEGA", flower: "FLORA", late_flower: "FLORA FINAL", harvest: "COLHEITA", drying: "SECAGEM", curing: "CURA" };
-const sourceTag = (source?: string | null) => source === "sensor" ? "SENSOR" : source === "manual" ? "REGISTRO MANUAL" : null;
-
-function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`flex flex-col gap-2.5 rounded-2xl border border-stroke bg-surface p-3.5 ${className}`}>{children}</section>;
-}
 function CardTitle({ icon, title, edit }: { icon: ReactNode; title: string; edit?: { label: string; href: string } }) {
   return (
     <div className="flex items-center justify-between gap-2">
@@ -44,8 +40,8 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Painel do ambiente (Figma 2160:6350; desktop W16 2374:17792). Mesma lógica do letsgrow-mobile/app/(app)/grows/[id]/index.tsx.
- * Desktop: coluna 1 com Bobby, Ambiente e Iluminação; coluna 2 com Exaustão, Ventilação e Plantas.
+ * Painel do ambiente no painel (UX itens 24 e 24b; celular D1 2427:23503, web W5p 2429:23825). Um cartão por bloco, com
+ * "Precisa de atenção" no topo; iluminação (PPFD e timer), exaustão (knob) e ventilação são os blocos de sempre.
  */
 export default function GrowPanelPage() {
   const { id } = useParams<{ id: string }>();
@@ -58,11 +54,11 @@ export default function GrowPanelPage() {
   const alerts = useBobAlerts();
   const [, select] = useRememberedGrow();
   const [picker, setPicker] = useState(false);
+  const minute = useMinuteOfDay();
 
   const grow = growQuery.data;
   const plants = plantsQuery.data ?? [];
   const active = (grows.data ?? []).filter(g => g.status === "active");
-  const index = active.findIndex(g => g.id === id);
 
   // O servidor responde com o ambiente; sem o valor enviado, não foi gravado (backend sem o campo): é erro, nunca "REGISTRADO".
   const saveExhaustPower = async (pct: number) => {
@@ -81,131 +77,196 @@ export default function GrowPanelPage() {
   const light = environmentMeasurement(grow.env, "light");
   const withExhaust = hasExhaust(grow.exhaust_type);
   const schedule = scheduleFromGrow(grow);
-  const alert = (alerts.data?.alerts ?? []).find(a => plants.some(p => p.id === a.plant_id));
-  const base = sourceTag(temperature.source);
-  const updated = dayMonthTime(temperature.observed_at, " ");
   const fanList = fans(grow);
   const archived = grow.status === "abandoned";
-  const subtitle = [index >= 0 ? `Ambiente selecionado · ${index + 1} de ${active.length}` : archived ? "Arquivado" : null, (growTypeLabel[grow.grow_type] ?? "").toLowerCase(), plantCount(plants.length)].filter(Boolean).join(" · ");
   const scheduleTag = schedule.incomplete ? null : schedule.light == null ? null
     : schedule.light >= 1440 ? "PROGRAMAÇÃO · 24/0"
     : schedule.onAt == null ? `PROGRAMAÇÃO · ${photoperiodText(schedule.light)}`
     : `PROGRAMAÇÃO · ${formatClock(schedule.onAt)} → ${formatClock(offMinute(schedule.onAt, schedule.light))}`;
   const lightTone: PanelTone = light.value == null ? "alert" : light.source === "sensor" ? "pink" : "calm";
+  const progress = dialProgress(schedule.onAt, schedule.light, minute);
+  const lightNow = progress.kind === "full" ? { lit: true, text: "Luz acesa · o dia todo" } : progress.kind === "cycle" ? (progress.lit ? { lit: true, text: `Luz acesa · faltam ${durationLabel(progress.remaining)}` } : { lit: false, text: `Luz apagada · liga às ${formatClock(progress.on)}` }) : null;
 
+  // Item 24 (W5p): "Precisa de atenção" no topo, um cartão por bloco, as peças do painel.
+  const humidity = environmentMeasurement(grow.env, "humidity"), vpd = environmentMeasurement(grow.env, "vpd");
+  const ids = new Set(plants.map(p => p.id));
+  const attention = attentionItems({
+    growId: grow.id, growName: grow.name, temperature, humidity, targetTemp: grow.target_temp_c, targetRh: grow.target_humidity_rh,
+    alerts: (alerts.data?.alerts ?? []).filter(a => ids.has(a.plant_id)),
+    lastWatering: Object.fromEntries(plants.map(p => [p.id, summaries.data?.[p.id]?.last_watering_at])),
+  });
+  const first = attention.items[0];
+  const out = (key: string) => { const it = attention.items.find(i => i.key === key); return it ? (/ abaixo /.test(it.title) ? "abaixo" : "acima") : null; };
+  const tOut = out("range-temperature"), hOut = out("range-humidity");
+  const lamp: LampState = attention.total ? "attention" : temperature.value == null && humidity.value == null ? "none" : "ok";
+  const dims = grow.tent_width_cm != null && grow.tent_depth_cm != null && grow.tent_height_cm != null ? `${grow.tent_width_cm}×${grow.tent_depth_cm}×${grow.tent_height_cm}` : null;
+  const phaseNames = [...new Set(plants.map(p => PHASE_TAG[p.current_phase]).filter(Boolean))];
+  const pots = grow.pot_count ?? 0;
+  const facts = [
+    grow.days_running != null ? `Há ${grow.days_running} ${grow.days_running === 1 ? "dia" : "dias"}` : null,
+    [plantCount(plants.length), pots ? `${pots} ${pots === 1 ? "vaso" : "vasos"}` : null].filter(Boolean).join(" · "),
+    phaseNames.length ? phaseNames.join(" e ") : null,
+  ].filter((x): x is string => !!x);
+
+  const attentionCard = first && (
+    <PanelCard label="Precisa de atenção">
+      <PanelTitle lamp="attention" right={<Marker tone="out">{first.tag === "AMBIENTE" ? first.title.replace(` da ${grow.name}`, "") : first.tag}</Marker>}>Precisa de atenção</PanelTitle>
+      <p className="text-[15px] leading-[21px] text-text">{first.title}. {first.meta}.</p>
+      {attention.items.slice(1).map(i => <p key={i.key} className="text-sm leading-5 text-text-secondary">· {i.title} — {i.meta}</p>)}
+      <div className="flex"><PanelButton kind="clear" label="Perguntar ao Bobby" href={routes.bobbyDraft(`${first.title}. O que você recomenda?`, first.target.kind === "grow" ? { grow_id: grow.id } : { plant_id: first.target.id })} /></div>
+    </PanelCard>
+  );
+  const reading = (label: string, value: number | null, unit: "°" | "%", target: number | null | undefined, outOf: string | null) => (
+    <div className="flex flex-col gap-1.5">
+      <PanelLabel>{label}</PanelLabel>
+      <SegmentedDisplay value={value == null ? null : Math.round(value)} unit={unit} label={label} />
+      {target != null ? <Marker tone={outOf ? "out" : "plain"}>Alvo {Math.round(target)}{unit === "°" ? "°" : "%"}</Marker> : <Marker>Sem alvo</Marker>}
+    </div>
+  );
+  const vpdMarker = readingMarker(vpd, null);
+  const envCard = (
+    <PanelCard label="Ambiente">
+      <PanelTitle divider right={<CornerLink href={routes.growEdit(grow.id)}>Editar alvos</CornerLink>}>Ambiente</PanelTitle>
+      <div className="flex flex-wrap gap-x-5 gap-y-3">
+        {reading("Temperatura", temperature.value, "°", grow.target_temp_c, tOut)}
+        {reading("Umidade", humidity.value, "%", grow.target_humidity_rh, hOut)}
+      </div>
+      {grow.grow_type !== "outdoor" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <PanelLabel>VPD · kPa</PanelLabel>
+          <SegmentedDisplay size="small" value={vpd.value} unit="" label="VPD" />
+          <Marker>{vpd.value == null ? "Sem leitura" : vpd.source === "sensor" ? "Sensor" : "Calculado"}</Marker>
+          {vpd.value != null && <Marker tone={vpdMarker.tone}>{vpdMarker.text}</Marker>}
+        </div>
+      )}
+      {temperature.value != null && <div className="flex"><Marker tone={readingMarker(temperature, null).tone}>{readingMarker(temperature, null).text}</Marker></div>}
+      <div className="mt-auto flex gap-2.5">
+        <PanelButton kind="clear" label="Histórico" href={routes.growHistory(grow.id)} />
+        {!archived && <PanelButton label="Registrar" href={routes.growReading(grow.id)} />}
+      </div>
+    </PanelCard>
+  );
+  const plantsCard = (
+    <PanelCard label="Plantas neste ambiente">
+      <PanelTitle divider>Plantas neste ambiente · {plants.length}</PanelTitle>
+      <ul className="flex flex-col">
+        {plants.map(plant => {
+          const s = summaries.data?.[plant.id] as (typeof summaries.data extends Record<string, infer T> | undefined ? T : never) & SummaryV3 | undefined;
+          const fromBackend = backendNextAction(s);
+          const local = fromBackend === undefined ? nextAction(plant.id, attention.items, s?.last_watering_at) : null;
+          const next = fromBackend ? nextMarker(fromBackend, s?.last_watering_at) : local ? nextMarker({ text: local.text, watering: local.tag === "REGA" }, s?.last_watering_at) : null;
+          const day = s?.phase_day ?? phaseDay(plant);
+          return (
+            <li key={plant.id}>
+              <Link href={routes.plant(plant.id) ?? "#"} className="flex min-h-12 items-center gap-2.5 py-1.5 hover:bg-surface-high">
+                <Lamp state={next ? "attention" : "ok"} />
+                <span className="font-label text-lg leading-6 text-text-primary">{plantDisplayName(plant)}</span>
+                <span className="flex flex-1 flex-wrap gap-1.5">
+                  <Marker>{(PHASE_TAG[plant.current_phase] ?? "Fase não informada") + (day ? ` · dia ${day}` : "")}</Marker>
+                  {next && <Marker tone="light">{next}</Marker>}
+                </span>
+                <span aria-hidden className="text-text-primary">›</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      {!plants.length && <p className="text-[15px] leading-[21px] text-text">Nenhuma planta ativa neste ambiente.</p>}
+      {routes.newPlant(grow.id) && !archived && <div className="flex"><PanelButton kind="clear" label="Adicionar planta" href={routes.newPlant(grow.id)} /></div>}
+    </PanelCard>
+  );
+  const lightCard = (
+    <PanelCard label="Iluminação">
+      <CardTitle icon={<img src="/figma/light.svg" alt="" />} title="ILUMINAÇÃO" edit={{ label: "Editar iluminação", href: form("light") }} />
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm leading-[17px] text-display">{lightDescription(grow) ?? "Luminária não informada"}</span>
+        {schedule.light != null && (
+          <span className="flex min-w-[160px] flex-1">
+            <span className="flex flex-1 items-center justify-center gap-2.5 bg-state-alert px-2.5 text-sm"><img src="/figma/sun-small.svg" alt="" />{durationLabel(schedule.light)}</span>
+            <span className="flex flex-1 items-center justify-center gap-2.5 bg-stroke-soft px-2.5 text-sm"><img src="/figma/moon-small.svg" alt="" />{durationLabel(1440 - schedule.light)}</span>
+          </span>
+        )}
+      </div>
+      {/* UX 2a: o timer centralizado à direita da régua, sempre na mesma linha; ele encolhe em vez de quebrar. */}
+      <div className="@container flex items-center gap-3">
+        <PpfdGauge value={null} badge="SEM LEITURA" />
+        <div className="flex min-w-0 flex-1 justify-center"><PhotoperiodDial onAt={schedule.onAt} light={schedule.light} lastReading={light} /></div>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {lightNow && <Marker tone={lightNow.lit ? "light" : "plain"}>{lightNow.text}</Marker>}
+        {/* Programação incompleta ou ausente abre o formulário de Iluminação (Figma 02C J6/J10). */}
+        {scheduleTag ? <Marker>{scheduleTag}</Marker>
+          : <Link href={form("light")} aria-label={schedule.incomplete ? "Programação incompleta. Completar a programação de luz" : "Sem programação de luz. Cadastrar a programação"}>
+            <Marker tone={schedule.incomplete ? "out" : "plain"}>{schedule.incomplete ? "Programação incompleta" : "Sem programação"}</Marker>
+          </Link>}
+        <PanelTag tone={lightTone} label={light.value == null ? "ESTADO ATUAL: SEM LEITURA" : `LUZ: ${Math.round(light.value)} LUX · ${dayMonthTime(light.observed_at, " ")?.toUpperCase() ?? "SEM DATA"}`} />
+      </div>
+    </PanelCard>
+  );
+  const linksCard = (
+    <PanelCard label="Histórico e arquivo">
+      <ul className="-my-1 flex flex-col">
+        {[
+          { title: "Histórico do ambiente", body: "Leituras, luz e equipamentos ao longo do tempo.", href: routes.growHistory(grow.id) },
+          ...(!archived ? [{ title: "Arquivar ambiente", body: "O histórico continua disponível.", href: routes.growEdit(grow.id) }] : []),
+        ].map(r => (
+          <li key={r.title} className="border-b border-stroke last:border-b-0">
+            <Link href={r.href} className="flex min-h-16 items-center gap-3 py-2.5 hover:bg-surface-high">
+              <span className="flex flex-1 flex-col gap-0.5"><span className="text-base leading-6 font-semibold text-text-primary">{r.title}</span><span className="text-sm leading-5 text-text-secondary">{r.body}</span></span>
+              <span aria-hidden className="text-text-primary">›</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </PanelCard>
+  );
+  const exhaustCard = (
+    <PanelCard label="Exaustão">
+      <div className="flex flex-wrap items-start gap-2.5">
+        <div className="flex min-w-[180px] flex-1 flex-col gap-2.5">
+          <CardTitle icon={<img src="/figma/exhaust.svg" alt="" />} title="EXAUSTÃO" edit={{ label: "Editar exaustão", href: form("exhaust") }} />
+          <p className="text-sm leading-[17px] text-display">{exhaustDescription(grow) ?? "Exaustão não informada"}</p>
+          {withExhaust && <p className="text-sm leading-[17px] text-display">Registra o ajuste do seu controlador. O app não liga nem regula o exaustor.</p>}
+          <div className="flex flex-col gap-1">
+            <Field label="LOCAL:" value={locationLabel(grow.exhaust_location)} />
+            <Field label="FILTRO DE AR:" value={carbonFilterLabel(grow.carbon_filter)} />
+          </div>
+        </div>
+        <ExhaustDimmer value={grow.exhaust_power_pct ?? null} updatedAt={grow.exhaust_power_updated_at ?? null} enabled={withExhaust && !archived} onSave={saveExhaustPower} />
+      </div>
+    </PanelCard>
+  );
+  const fanCard = (
+    <PanelCard label="Ventilação" className="!flex-row !gap-0">
+      {(fanList.length ? fanList : [{ title: "Ventilação não informada", location: "NÃO INFORMADO" }]).map((fan, i) => (
+        <div key={i} className={`flex flex-1 flex-col gap-1.5 ${i > 0 ? "border-l border-stroke pl-2" : "pr-2"}`}>
+          <CardTitle icon={<img src="/figma/fan.svg" alt="" />} title="VENTILAÇÃO" edit={{ label: "Editar ventilação", href: form("fans") }} />
+          <p className="text-sm leading-[17px] text-display">{fan.title}</p>
+          <Field label="LOCAL:" value={fan.location} />
+        </div>
+      ))}
+    </PanelCard>
+  );
+
+  // W5p: atenção, ambiente e plantas | iluminação e histórico | exaustão, ventilação e equipamento. Celular (D1): a mesma ordem, empilhada.
   return (
     <>
-      <PageHeader title={grow.name} subtitle={subtitle}
-        action={active.length > 1 && <button type="button" onClick={() => setPicker(true)} className="min-h-11 rounded-[10px] border border-input-border bg-surface px-4 text-[15px] font-semibold text-text-primary hover:bg-surface-high cursor-pointer">Trocar ambiente</button>} />
-      <div className="grid items-start gap-[14px] md:grid-cols-2 md:gap-6">
-        <div className="flex flex-col gap-[14px] md:gap-5">
-          <Card>
-            <div className="flex flex-col gap-2.5 rounded-xl bg-surface-bobby p-3">
-              <div className="flex items-center gap-2"><img src="/figma/bobby-panel.svg" alt="" /><h2 className="font-label text-base text-display">ACOMPANHAMENTO DO BOBBY</h2></div>
-              <p className="text-base leading-6">{alert?.message ?? "Veja a origem das leituras antes de comparar."}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {base ? <PanelTag tone="stable" label={`BASE: ${base}`} /> : <PanelTag label="SEM LEITURA REGISTRADA" />}
-                {updated && <PanelTag label={`ATUALIZADO ${updated.toUpperCase()}`} />}
-              </div>
-              {!archived && (
-                <Link href={routes.growReading(grow.id)!} className="flex min-h-12 items-center justify-center gap-2.5 rounded-lg border-[0.5px] border-bg bg-surface px-4 py-3 text-base font-semibold text-display shadow-[4px_4px_4px_rgba(0,0,0,0.1)] hover:bg-surface-high">
-                  REGISTRAR LEITURA <img src="/figma/chevron-right.svg" alt="" />
-                </Link>
-              )}
-              <ActionRow title="Histórico do ambiente" body="Leituras, notas e ajustes registrados." href={routes.growHistory(grow.id)} />
-            </div>
-          </Card>
-
-          <Card>
-            <CardTitle icon={<img src="/figma/temperature.svg" alt="" width={30} height={27} />} title="AMBIENTE" edit={{ label: "Editar ambiente", href: routes.growEdit(grow.id) }} />
-            <EnvironmentReadings env={grow.env} indoor={grow.grow_type !== "outdoor"} />
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <div className="flex w-[132px] flex-col gap-0.5"><span className="font-label text-sm leading-4 text-display">FAIXA DEFINIDA POR VOCÊ</span><PanelTag label="CADASTRO" /></div>
-              <div className="flex gap-3">
-                <div className="flex w-24 flex-col items-center gap-0.5"><span className="font-label text-base text-display">TEMP.</span><SegmentedDisplay size="small" unit="°" value={grow.target_temp_c ?? null} label="Temperatura definida" /></div>
-                <div className="flex w-24 flex-col items-center gap-0.5"><span className="font-label text-base text-display">UMID.</span><SegmentedDisplay size="small" unit="%" value={grow.target_humidity_rh ?? null} label="Umidade definida" /></div>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <CardTitle icon={<img src="/figma/light.svg" alt="" />} title="ILUMINAÇÃO" edit={{ label: "Editar iluminação", href: form("light") }} />
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm leading-[17px] text-display">{lightDescription(grow) ?? "Luminária não informada"}</span>
-              {schedule.light != null && (
-                <span className="flex min-w-[200px] flex-1">
-                  <span className="flex flex-1 items-center justify-center gap-2.5 bg-state-alert px-2.5 text-sm"><img src="/figma/sun-small.svg" alt="" />{durationLabel(schedule.light)}</span>
-                  <span className="flex flex-1 items-center justify-center gap-2.5 bg-stroke-soft px-2.5 text-sm"><img src="/figma/moon-small.svg" alt="" />{durationLabel(1440 - schedule.light)}</span>
-                </span>
-              )}
-            </div>
-            {/* UX 2a: o timer centralizado à direita da régua, sempre na mesma linha; ele encolhe em vez de quebrar. */}
-            <div className="@container flex items-center gap-3">
-              <PpfdGauge value={null} badge="SEM LEITURA" />
-              <div className="flex min-w-0 flex-1 justify-center"><PhotoperiodDial onAt={schedule.onAt} light={schedule.light} lastReading={light} /></div>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {/* Programação incompleta ou ausente abre o formulário de Iluminação (Figma 02C J6/J10). */}
-              {scheduleTag ? <PanelTag label={scheduleTag} />
-                : <Link href={form("light")} aria-label={schedule.incomplete ? "Programação incompleta. Completar a programação de luz" : "Sem programação de luz. Cadastrar a programação"}>
-                    <PanelTag tone={schedule.incomplete ? "alert" : "neutral"} label={schedule.incomplete ? "PROGRAMAÇÃO INCOMPLETA" : "SEM PROGRAMAÇÃO"} />
-                  </Link>}
-              <PanelTag tone={lightTone} label={light.value == null ? "ESTADO ATUAL: SEM LEITURA" : `LUZ: ${Math.round(light.value)} LUX · ${dayMonthTime(light.observed_at, " ")?.toUpperCase() ?? "SEM DATA"}`} />
-            </div>
-          </Card>
+      <div className="flex flex-col gap-2">
+        <BackLink fallback={routes.grows()} />
+        <div className="flex flex-wrap items-center gap-3">
+          <Lamp state={lamp} />
+          <h1 className="font-label min-w-0 flex-1 text-[28px] leading-9 text-text-primary">{grow.name}</h1>
+          <Marker>{[growTypeLabel[grow.grow_type] ?? null, dims].filter(Boolean).join(" · ") || "Ambiente"}</Marker>
+          {active.length > 1 && <div className="flex"><PanelButton kind="clear" label="Trocar ambiente" onClick={() => setPicker(true)} /></div>}
         </div>
-
-        <div className="flex flex-col gap-[14px] md:gap-5">
-          <Card>
-            <div className="flex flex-wrap items-start gap-2.5">
-              <div className="flex min-w-[180px] flex-1 flex-col gap-2.5">
-                <CardTitle icon={<img src="/figma/exhaust.svg" alt="" />} title="EXAUSTÃO" edit={{ label: "Editar exaustão", href: form("exhaust") }} />
-                <p className="text-sm leading-[17px] text-display">{exhaustDescription(grow) ?? "Exaustão não informada"}</p>
-                {withExhaust && <p className="text-sm leading-[17px] text-display">Registra o ajuste do seu controlador. O app não liga nem regula o exaustor.</p>}
-                <div className="flex flex-col gap-1">
-                  <Field label="LOCAL:" value={locationLabel(grow.exhaust_location)} />
-                  <Field label="FILTRO DE AR:" value={carbonFilterLabel(grow.carbon_filter)} />
-                </div>
-              </div>
-              <ExhaustDimmer value={grow.exhaust_power_pct ?? null} updatedAt={grow.exhaust_power_updated_at ?? null} enabled={withExhaust && !archived} onSave={saveExhaustPower} />
-            </div>
-          </Card>
-
-          <Card className="!flex-row !gap-0">
-            {(fanList.length ? fanList : [{ title: "Ventilação não informada", location: "NÃO INFORMADO" }]).map((fan, i) => (
-              <div key={i} className={`flex flex-1 flex-col gap-1.5 ${i > 0 ? "border-l border-stroke pl-2" : "pr-2"}`}>
-                <CardTitle icon={<img src="/figma/fan.svg" alt="" />} title="VENTILAÇÃO" edit={{ label: "Editar ventilação", href: form("fans") }} />
-                <p className="text-sm leading-[17px] text-display">{fan.title}</p>
-                <Field label="LOCAL:" value={fan.location} />
-              </div>
-            ))}
-          </Card>
-
-          <Card>
-            <div className="flex items-center gap-2"><img src="/figma/leaf-22.svg" alt="" /><h2 className="font-label flex-1 text-base text-display">PLANTAS DESTE AMBIENTE</h2><PanelTag tone="stable" label={String(plants.length)} /></div>
-            {plants.map(plant => {
-              const watering = dayMonthTime(summaries.data?.[plant.id]?.last_watering_at, ", ");
-              const day = phaseDay(plant);
-              const image = summaries.data?.[plant.id]?.strain_image_url || `/figma/plant-${plantIllustration(plant.id)}.png`;
-              const href = routes.plant(plant.id);
-              const body = (
-                <>
-                  <img src={image} alt="" width={56} height={56} className="h-14 w-14 rounded-lg object-cover" />
-                  <span className="flex flex-1 flex-col gap-0.5">
-                    <span className="font-label text-xl leading-6 text-text-primary">{plantDisplayName(plant)}</span>
-                    <span className="text-sm leading-5 text-text-secondary">{watering ? `Última rega: ${watering}` : "Nenhuma rega registrada"}</span>
-                    <PanelTag tone={phases[plant.current_phase] && plant.current_phase !== "unknown" ? "calm" : "neutral"} label={(PHASE_TAG[plant.current_phase] ?? "FASE NÃO INFORMADA") + (day ? ` · DIA ${day}` : "")} />
-                  </span>
-                  {href && <img src="/figma/arrow-right-dark.svg" alt="" />}
-                </>
-              );
-              const cls = "flex items-center gap-2.5 rounded-[10px] border border-stroke p-2";
-              return href ? <Link key={plant.id} href={href} className={`${cls} hover:border-input-border`}>{body}</Link> : <div key={plant.id} className={cls}>{body}</div>;
-            })}
-            {!plants.length && <p className="text-sm leading-5 text-text-secondary">Nenhuma planta ativa neste ambiente.</p>}
-            {routes.newPlant(grow.id) && !archived && <Link href={routes.newPlant(grow.id)!} className="flex min-h-12 items-center justify-center gap-2.5 rounded-lg bg-primary px-4 text-base font-semibold text-white hover:bg-primary-dark">ADICIONAR PLANTA <img src="/figma/arrow-right.svg" alt="" /></Link>}
-            <p className="text-sm leading-5 text-text-secondary">Vaso e substrato são opcionais e ficam na ficha de cada planta.</p>
-          </Card>
+        <div className="flex flex-wrap gap-1.5">{archived && <Marker tone="out">Arquivado</Marker>}{facts.map(f => <Marker key={f}>{f}</Marker>)}</div>
+      </div>
+      <div className="flex flex-col gap-[14px] lg:grid lg:grid-cols-3 lg:items-start lg:gap-5">
+        <div className="flex flex-col gap-[14px] lg:gap-5">{attentionCard}{envCard}{plantsCard}</div>
+        <div className="flex flex-col gap-[14px] lg:gap-5">{lightCard}{linksCard}</div>
+        <div className="flex flex-col gap-[14px] lg:gap-5">
+          {exhaustCard}{fanCard}
+          {!archived && <div className="flex"><PanelButton kind="clear" label="Adicionar equipamento" href={routes.growEquipment(grow.id)} /></div>}
         </div>
       </div>
 
