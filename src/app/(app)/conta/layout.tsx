@@ -43,11 +43,12 @@ function AccountMenu({ wide }: { wide: boolean }) {
   const plan = useAccountPlan(exploring);
   const planActive = at(routes.credits()) || at(routes.plans());
   // W4p: em 3 colunas na raiz (perfil e plano | Configurações | Ajuda, Neste aparelho e Sair); empilhado nas internas.
-  const col = wide ? "contents lg:flex lg:flex-col lg:gap-5" : "contents";
+  // Desktop: as três colunas terminam na mesma altura (o último cartão de cada uma cresce; pedido do usuário, 12 nov).
+  const col = wide ? "contents lg:flex lg:flex-col lg:gap-5 lg:[&>section:last-of-type]:flex-1" : "contents";
   return (
     <>
       <PageTitle>Minha conta</PageTitle>
-      <div className={wide ? "flex flex-col gap-4 lg:grid lg:grid-cols-3 lg:items-start lg:gap-5" : "flex flex-col gap-4"}>
+      <div className={wide ? "flex flex-col gap-4 lg:grid lg:grid-cols-3 lg:gap-5" : "flex flex-col gap-4"}>
         <div className={col}>
           <AccountProfile name={me?.full_name?.trim() || null} email={me?.email ?? null} exploring={exploring} />
           {/* "Créditos e plano" fica acessível em qualquer modo (82bdf5e): a linha simples enquanto o cartão carrega ou se falhar. */}

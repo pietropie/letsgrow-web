@@ -183,38 +183,37 @@ export default function HomePage() {
       askTipHref={tip ? routes.bobbyAsk(tip.cta_prompt || tip.title, { grow_id: grow.id }) : null} />
   );
 
-  // W1p (1200, 3 colunas): plano, atenção e ambiente | plantas | Bobby e clima. Celular (I1): plano, atenção, plantas,
-  // Bobby, clima e ambiente. As colunas viram "contents" abaixo de lg para a ordem do celular valer.
+  // Desktop em linhas (pedido do usuário, 12 nov: "tá muito bagunçado"): o plano e a atenção em faixas largas; plantas,
+  // ambiente e clima lado a lado, com a mesma altura em cada linha; o Bobby na largura toda, com as sugestões em colunas.
+  // Celular (I1): plano, atenção, plantas, Bobby, clima e ambiente, pela ordem (order-*).
   return (
     <>
       {greeting}
       <InstallBanner />
-      <div className="flex flex-col gap-[14px] lg:grid lg:grid-cols-3 lg:items-start lg:gap-5">
-        <div className="contents lg:flex lg:flex-col lg:gap-5">
-          {band && <div className="order-1 lg:order-none"><PlanPanel name={planName!} view={band} link={{ label: "Uso e plano", href: routes.credits() }} planHref={routes.plans()} /></div>}
-          {attention.total > 0 && <div className="order-2 lg:order-none"><AttentionPanel items={attention.items} total={attention.total} hrefOf={attentionHref} /></div>}
-          <div className="order-6 lg:order-none">{envPanel}</div>
-        </div>
-        <section className="order-3 flex min-w-0 flex-col gap-[14px] lg:order-none lg:gap-5" aria-label="Suas plantas">
-          {growPlants.length ? growPlants.map((plant, i) => (
-            <PlantPanel key={plant.id} header={{ title: growPlants.length === 1 ? "Sua planta" : `Suas plantas · ${growPlants.length}`, calendarHref: routes.plantsCalendar() }}
+      <div className="flex flex-col gap-[14px] lg:grid lg:grid-cols-3 lg:gap-5">
+        {band && <div className="order-1 lg:col-span-3 lg:order-none"><PlanPanel wide name={planName!} view={band} link={{ label: "Uso e plano", href: routes.credits() }} planHref={routes.plans()} /></div>}
+        {attention.total > 0 && <div className="order-2 lg:col-span-3 lg:order-none"><AttentionPanel wide items={attention.items} total={attention.total} hrefOf={attentionHref} /></div>}
+        {growPlants.length ? growPlants.map((plant, i) => (
+          <div key={plant.id} className="order-3 grid min-w-0 lg:order-none">
+            <PlantPanel header={{ title: growPlants.length === 1 ? "Sua planta" : `Suas plantas · ${growPlants.length}`, calendarHref: routes.plantsCalendar() }}
               {...plantPanelProps({ plant, summary: summaryOf(plant.id), growName: grow.name, items: attention.items, hrefOf: attentionHref, diaryPhoto: photos[i]?.data?.[0]?.photo_urls?.[0], illustrate: true })} />
-          )) : (
+          </div>
+        )) : (
+          <div className="order-3 grid lg:order-none">
             <PanelCard label="Suas plantas">
               <PanelTitle right={<CornerLink href={routes.plantsCalendar()}>Ver calendário</CornerLink>}>Suas plantas</PanelTitle>
               <p className="text-[15px] leading-[21px] text-text">Nenhuma planta ativa neste ambiente.</p>
             </PanelCard>
-          )}
-        </section>
-        <div className="contents lg:flex lg:flex-col lg:gap-5">
-          <div className="order-4 lg:order-none">
-            <BobbyPanel title={b?.title || "Pergunte sobre o seu cultivo"} body={b?.body}
-              marker={b?.title ? "Resumo de hoje · feito com os seus registros" : "O resumo aparece quando houver registros"}
-              suggestionsTitle="Sugestões pelo que você registrou" suggestions={suggestions}
-              exhausted={out ? { text: `${out.title}. ${out.body}`, plansHref: rec?.plan_key ? routes.plans() : null } : null}
-              inputHref={routes.bobby()!} meter={meter} footer={footer} />
           </div>
-          <div className="order-5 lg:order-none">{climate}</div>
+        )}
+        <div className="order-6 grid lg:order-none">{envPanel}</div>
+        <div className="order-5 grid lg:order-none">{climate}</div>
+        <div className="order-4 lg:col-span-3 lg:order-none">
+          <BobbyPanel wide title={b?.title || "Pergunte sobre o seu cultivo"} body={b?.body}
+            marker={b?.title ? "Resumo de hoje · feito com os seus registros" : "O resumo aparece quando houver registros"}
+            suggestionsTitle="Sugestões pelo que você registrou" suggestions={suggestions}
+            exhausted={out ? { text: `${out.title}. ${out.body}`, plansHref: rec?.plan_key ? routes.plans() : null } : null}
+            inputHref={routes.bobby()!} meter={meter} footer={footer} />
         </div>
       </div>
 

@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { PlantPanel } from "@/components/home/panel-home";
-import { Marker, PanelButton, PanelCard, PanelTitle, SegMeter } from "@/components/panel";
+import { AddCard, LinkCard, Marker, PanelButton, PanelCard, PanelTitle, SegMeter } from "@/components/panel";
 import { PlantsCalendar } from "@/components/plants/plants-calendar";
 import { Button, Notice, Spinner } from "@/components/ui";
 import { usePlanConfigs } from "@/lib/account";
@@ -109,7 +108,7 @@ function Plants() {
 
   const header = (
     <div className="flex flex-wrap items-center gap-3">
-      <h1 className="font-label flex-1 text-[28px] leading-9 text-text-primary">Suas plantas</h1>
+      <h1 className="font-label text-[28px] leading-9 text-text-primary">Suas plantas</h1>
       {usage && (unlimited
         ? <Marker>{usage.used} {usage.used === 1 ? "planta" : "plantas"}</Marker>
         : <span className="flex items-center gap-2"><SegMeter filled={usage.used} total={usage.total!} /><Marker tone={atLimit ? "out" : "plain"}>{usage.used} de {usage.total}</Marker></span>)}
@@ -151,13 +150,7 @@ function Plants() {
   );
   const archivedCount = archived.data?.length ?? 0;
   const archivedRow = archivedCount > 0 && (
-    <Link href={routes.archivedPlants()} className="flex min-h-16 items-center gap-3 rounded-2xl border border-stroke bg-surface px-3.5 py-3 hover:bg-surface-high">
-      <span className="flex flex-1 flex-col gap-0.5">
-        <span className="text-base leading-6 font-semibold text-text-primary">Plantas arquivadas e colhidas</span>
-        <span className="text-sm leading-5 text-text-secondary">{archivedCount === 1 ? "1 planta" : `${archivedCount} plantas`} · o histórico continua disponível.</span>
-      </span>
-      <span aria-hidden className="text-text-primary">›</span>
-    </Link>
+    <LinkCard href={routes.archivedPlants()} title="Plantas arquivadas e colhidas" body={`${archivedCount === 1 ? "1 planta" : `${archivedCount} plantas`} · o histórico continua disponível.`} />
   );
   const limitCard = atLimit && (
     <PanelCard tone={covers ? "bobby" : undefined} label="Limite do plano">
@@ -209,12 +202,13 @@ function Plants() {
               {archivedRow}
             </div>
           ) : (
-            <div className="flex flex-col gap-[14px] lg:grid lg:grid-cols-3 lg:items-start lg:gap-5">
+            // Desktop (pedido do usuário, 12 nov): uma grade só, cartões com a mesma altura por linha.
+            <div className="flex flex-col gap-[14px] md:grid md:grid-cols-2 md:gap-5 lg:grid-cols-3">
               {shown.map(c => <PlantPanel key={c.plant.id} {...c.props} large={cards.length === 1} />)}
               {!shown.length && <p className="text-[15px] leading-[21px] text-text">Nenhuma planta neste filtro.</p>}
               {limitCard}
-              {!atLimit && <div className="flex"><PanelButton kind="clear" label="Adicionar planta" href={routes.newPlant(growFilter ?? undefined)} /></div>}
-              {archivedRow}
+              {!atLimit && <AddCard href={routes.newPlant(growFilter ?? undefined)} label="Adicionar planta" hint="Os detalhes podem ser completados depois." />}
+              {archivedRow && <div className="flex flex-col md:col-span-2 lg:col-span-3">{archivedRow}</div>}
             </div>
           )}
     </>

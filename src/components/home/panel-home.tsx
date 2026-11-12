@@ -27,11 +27,20 @@ function MeterBlock({ m, room }: { m: Meter; room: boolean }) {
 }
 
 /** "SEU PLANO" (F1–F6 no painel): os três medidores segmentados; a recomendação só com motivo real. */
-export function PlanPanel({ name, view, link, planHref }: { name: string; view: PlanBandView; link: { label: string; href: string }; planHref: string }) {
+export function PlanPanel({ name, view, link, planHref, wide = false }: { name: string; view: PlanBandView; link: { label: string; href: string }; planHref: string; wide?: boolean }) {
+  const meters = <div className="flex flex-wrap gap-x-6 gap-y-3">{view.meters.map(m => <MeterBlock key={m.label} m={m} room={view.meters.some(x => !!x.seg)} />)}</div>;
   return (
     <PanelCard label="Seu plano">
-      <PanelTitle right={<CornerLink href={link.href}>{link.label}</CornerLink>}>SEU PLANO <span className="ml-1 align-middle"><Marker>{name}</Marker></span></PanelTitle>
-      <div className="flex flex-wrap gap-x-5 gap-y-3">{view.meters.map(m => <MeterBlock key={m.label} m={m} room={view.meters.some(x => !!x.seg)} />)}</div>
+      {wide ? (
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-10">
+          <div className="flex items-center gap-2.5 lg:min-w-[260px]"><h2 className="font-label text-lg leading-6 text-display uppercase">Seu plano</h2><Marker>{name}</Marker></div>
+          <div className="flex-1">{meters}</div>
+          <CornerLink href={link.href}>{link.label}</CornerLink>
+        </div>
+      ) : <>
+        <PanelTitle right={<CornerLink href={link.href}>{link.label}</CornerLink>}>SEU PLANO <span className="ml-1 align-middle"><Marker>{name}</Marker></span></PanelTitle>
+        {meters}
+      </>}
       {view.near && <p className={sentence}>{view.near}</p>}
       {view.offer && (
         <div className="flex flex-col gap-2.5 border-t border-stroke pt-3">
@@ -45,11 +54,11 @@ export function PlanPanel({ name, view, link, planHref }: { name: string; view: 
 }
 
 /** "PRECISA DE ATENÇÃO" com a lâmpada e a contagem no mostrador; some sem item. */
-export function AttentionPanel({ items, total, hrefOf }: { items: AttentionItem[]; total: number; hrefOf: (i: AttentionItem) => string | null }) {
+export function AttentionPanel({ items, total, hrefOf, wide = false }: { items: AttentionItem[]; total: number; hrefOf: (i: AttentionItem) => string | null; wide?: boolean }) {
   return (
     <PanelCard label="Precisa de atenção">
       <PanelTitle lamp="attention" divider right={<SegmentedDisplay size="small" value={total} unit="" spoken={`${total} itens`} />}>Precisa de atenção</PanelTitle>
-      <ul className="flex flex-col">
+      <ul className={wide ? "flex flex-col lg:grid lg:grid-cols-3 lg:gap-x-6" : "flex flex-col"}>
         {items.map(item => {
           const href = hrefOf(item);
           const body = (
@@ -204,6 +213,7 @@ export function BobbyPanel(p: {
   suggestionsTitle: string; suggestions: (Suggestion & { href: string })[];
   exhausted: { text: string; plansHref: string | null } | null;
   inputHref: string; meter: { used: number; total: number; text: string } | null; footer: string | null;
+  wide?: boolean;
 }) {
   return (
     <PanelCard tone="bobby" label="Bobby">
@@ -224,7 +234,7 @@ export function BobbyPanel(p: {
         <>
           {!!p.suggestions.length && <>
             <p className="font-label text-[13px] leading-4 text-display uppercase">{p.suggestionsTitle}</p>
-            <ul className="flex flex-col gap-2">
+            <ul className={p.wide ? "flex flex-col gap-2 lg:grid lg:grid-cols-3" : "flex flex-col gap-2"}>
               {p.suggestions.map(s => (
                 <li key={s.key}><Link href={s.href} className="flex min-h-11 items-center gap-2 rounded-lg border border-display bg-surface px-3 py-2.5 text-[15px] leading-5 text-text-primary hover:bg-surface-high">
                   <span className="flex-1">{s.label}</span><span aria-hidden>›</span>

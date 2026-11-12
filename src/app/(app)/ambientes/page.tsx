@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { SegmentedDisplay } from "@/components/home/blocks";
 import { EnvPanel } from "@/components/home/panel-home";
-import { Marker, PanelButton, PanelCard, PanelTitle, SegMeter } from "@/components/panel";
+import { AddCard, LinkCard, Marker, PanelButton, PanelCard, PanelTitle, SegMeter } from "@/components/panel";
 import { Button, Spinner } from "@/components/ui";
 import { usePlanConfigs } from "@/lib/account";
 import { useActivePlants, useBobAlerts, useGrows, useMinuteOfDay, usePlantSummaries } from "@/lib/hooks";
@@ -47,7 +46,7 @@ export default function GrowsPage() {
 
   const header = (
     <div className="flex flex-wrap items-center gap-3">
-      <h1 className="font-label flex-1 text-[28px] leading-9 text-text-primary">Seus ambientes</h1>
+      <h1 className="font-label text-[28px] leading-9 text-text-primary">Seus ambientes</h1>
       {usage && (unlimited
         ? <Marker>{usage.used} {usage.used === 1 ? "ambiente" : "ambientes"}</Marker>
         : <span className="flex items-center gap-2"><SegMeter filled={usage.used} total={usage.total!} /><Marker tone={atLimit ? "out" : "plain"}>{usage.used} de {usage.total}</Marker></span>)}
@@ -68,20 +67,7 @@ export default function GrowsPage() {
     </PanelCard>
   ));
   const archivedRow = archivedCount > 0 && (
-    <Link href={routes.archivedGrows()} className="flex min-h-16 items-center gap-3 rounded-2xl border border-stroke bg-surface px-3.5 py-3 hover:bg-surface-high">
-      <span className="flex flex-1 flex-col gap-0.5">
-        <span className="text-base leading-6 font-semibold text-text-primary">Ambientes arquivados</span>
-        <span className="text-sm leading-5 text-text-secondary">{archivedCount === 1 ? "1 ambiente" : `${archivedCount} ambientes`} · o histórico continua disponível.</span>
-      </span>
-      <span aria-hidden className="text-text-primary">›</span>
-    </Link>
-  );
-  const side = (
-    <div className="flex flex-col gap-[14px] lg:gap-5">
-      {limitCard}
-      {!atLimit && active.length > 0 && <div className="flex"><PanelButton kind="clear" label="Adicionar ambiente" href={routes.newGrow()} /></div>}
-      {archivedRow}
-    </div>
+    <LinkCard href={routes.archivedGrows()} title="Ambientes arquivados" body={`${archivedCount === 1 ? "1 ambiente" : `${archivedCount} ambientes`} · o histórico continua disponível.`} />
   );
 
   if (grows.isPending) return <>{header}<Spinner /></>;
@@ -109,8 +95,8 @@ export default function GrowsPage() {
   return (
     <>
       {header}
-      <div className="flex flex-col gap-[14px] lg:grid lg:grid-cols-3 lg:items-start lg:gap-5">
-        <div className="flex flex-col gap-[14px] lg:col-span-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5">
+      {/* Desktop (pedido do usuário, 12 nov): uma grade só, cartões com a mesma altura por linha. */}
+      <div className="flex flex-col gap-[14px] md:grid md:grid-cols-2 md:gap-5 lg:grid-cols-3">
           {active.map(g => {
             const growPlants = (plants.data ?? []).filter(p => p.grow_id === g.id);
             const ids = new Set(growPlants.map(p => p.id));
@@ -123,8 +109,9 @@ export default function GrowsPage() {
             }).items;
             return <EnvPanel key={g.id} {...growPanelProps({ grow: g, plantCount: g.active_plant_count, items, minute, showDays: true })} />;
           })}
-        </div>
-        {side}
+        {limitCard}
+        {!atLimit && <AddCard href={routes.newGrow()} label="Adicionar ambiente" hint="Um espaço simples também pode ser um ambiente." />}
+        {archivedRow && <div className="flex flex-col md:col-span-2 lg:col-span-3">{archivedRow}</div>}
       </div>
     </>
   );

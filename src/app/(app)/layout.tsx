@@ -24,7 +24,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <header className="pt-safe flex h-[47px] items-start justify-center pt-2 md:hidden"><Brand /></header>
         {fullBleed
           ? <main className="flex min-w-0 flex-1 flex-col">{children}</main>
-          : <main className="mx-auto flex w-full max-w-[600px] flex-col gap-4 p-5 pb-32 md:max-w-[1120px] md:gap-5 md:p-6 md:pb-10 lg:px-8 lg:py-7">{children}</main>}
+          : <main className="mx-auto flex w-full max-w-[600px] flex-col gap-4 p-5 pb-32 md:max-w-[1120px] lg:max-w-[1280px] md:gap-5 md:p-6 md:pb-10 lg:px-8 lg:py-7">{children}</main>}
       </div>
       <BottomTabs />
       <AgeConfirm />

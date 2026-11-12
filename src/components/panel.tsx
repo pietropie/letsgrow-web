@@ -13,7 +13,7 @@ const MARKER: Record<MarkerTone, string> = { plain: "bg-bg", light: "bg-state-al
 
 /** Marcador: etiqueta em Share Tech caixa alta. */
 export function Marker({ children, tone = "plain" }: { children: ReactNode; tone?: MarkerTone }) {
-  return <span className={`font-label inline-block self-start px-1.5 py-px text-xs leading-4 text-display uppercase ${MARKER[tone]}`}>{children}</span>;
+  return <span className={`font-label inline-block self-start px-1.5 py-px text-xs leading-4 text-display uppercase lg:text-[13px] lg:leading-[18px] ${MARKER[tone]}`}>{children}</span>;
 }
 
 export type LampState = "ok" | "attention" | "none";
@@ -84,4 +84,28 @@ export function PanelButton({ label, href, onClick, kind = "primary", external =
 /** Rótulo pequeno em Share Tech sobre um medidor ou mostrador. */
 export function PanelLabel({ children }: { children: ReactNode }) {
   return <p className="font-label text-[13px] leading-4 text-display uppercase">{children}</p>;
+}
+
+/** Cartão tracejado de "Adicionar" dentro da grade (Ambientes e Plantas): ocupa a altura da linha. */
+export function AddCard({ href, label, hint }: { href: string | null; label: string; hint: string }) {
+  if (!href) return null;
+  return (
+    <Link href={href} className="flex min-h-28 flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-input-border p-5 text-center hover:bg-surface-high">
+      <span className="font-label text-[17px] leading-5 text-text-primary uppercase">+ {label}</span>
+      <span className="text-sm leading-5 text-text-secondary">{hint}</span>
+    </Link>
+  );
+}
+
+/** Cartão de link dentro da grade (arquivados, histórico): título, frase e "›". */
+export function LinkCard({ href, title, body }: { href: string | null; title: string; body: string }) {
+  return (
+    <Link href={href ?? "#"} className="flex min-h-16 items-center gap-3 rounded-2xl border border-stroke bg-surface px-3.5 py-3 hover:bg-surface-high">
+      <span className="flex flex-1 flex-col gap-0.5">
+        <span className="text-base leading-6 font-semibold text-text-primary">{title}</span>
+        <span className="text-sm leading-5 text-text-secondary">{body}</span>
+      </span>
+      <span aria-hidden className="text-text-primary">›</span>
+    </Link>
+  );
 }
