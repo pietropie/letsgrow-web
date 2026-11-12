@@ -1,151 +1,222 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { NewEventPanel } from "@/components/plants/new-event-panel";
+import { PlantPanel } from "@/components/home/panel-home";
+import { Marker, PanelButton, PanelCard, PanelTitle, SegMeter } from "@/components/panel";
 import { PlantsCalendar } from "@/components/plants/plants-calendar";
-import { ActionRow, Button, ButtonLink, Notice, PageHeader, Spinner } from "@/components/ui";
+import { Button, Notice, Spinner } from "@/components/ui";
+import { usePlanConfigs } from "@/lib/account";
+import { type SummaryV3 } from "@/lib/home-v3";
 import { useBobAlerts, useGrows, usePlants, usePlantSummaries } from "@/lib/hooks";
+import { plantPanelProps } from "@/lib/panel-props";
+import { normalizePlan } from "@/lib/plans";
+import { useRecommendation } from "@/lib/recommendation-client";
 import { routes } from "@/lib/routes";
-import { phases } from "@/shared/constants/theme";
-import { phaseDay } from "@/shared/lib/phaseDay";
-import { PHASE_ICON_LABEL, dayCount, phaseIcon } from "@/shared/lib/plantFacts";
-import { plantDisplayName, plantIllustration } from "@/shared/lib/plantIdentity";
-import type { GrowSummary, PlantResponse, PlantSummary } from "@/shared/types/api";
+import { attentionItems, type AttentionItem } from "@/shared/lib/homeClimate";
+import { environmentMeasurement } from "@/shared/lib/measurements";
+import { plantDisplayName } from "@/shared/lib/plantIdentity";
+import type { PlantResponse, PlantSummary } from "@/shared/types/api";
 
 type View = "cards" | "calendar";
-/** Última escolha Cartões | Calendário, por navegador (UX-CORRECOES.md item 6). */
+type Sort = "attention" | "phase" | "name" | "recent";
+/** Últimas escolhas, por navegador (itens 6 e 22): Cartões | Calendário e a ordenação. */
 const VIEW_KEY = "letsgrow-plants-view";
+const SORT_KEY = "letsgrow-plants-sort";
+const SORTS: Record<Sort, string> = { attention: "Atenção primeiro", phase: "Por fase", name: "Por nome", recent: "Registro mais recente" };
+const PHASE_ORDER = ["germination", "seedling", "veg", "flower", "late_flower", "harvest", "drying", "curing", "unknown"];
 
 export default function PlantsPage() {
   return <Suspense fallback={<Spinner />}><Plants /></Suspense>;
 }
 
 /**
- * Suas plantas (Figma W17 cartões, W18 calendário; mobile app/(app)/plants/index.tsx). Os chips de ambiente ficam no
- * topo das duas vistas; ?modo=calendario abre direto o calendário (atalho do Início).
+ * Suas plantas v2 no painel (UX itens 22 e 23b; web W3p 2423:24352, celular P1p 2422:23723, estados E9–E11
+ * 2424:23690). Lista de cartões (compacto com 2 ou mais, grande com 1), filtros Todas, Atenção e por ambiente,
+ * "Atenção primeiro" como ordem padrão, e o limite do plano. O modo Calendário não muda.
  */
 function Plants() {
   const router = useRouter();
   const params = useSearchParams();
   const [view, setView] = useState<View>(params.get("modo") === "calendario" ? "calendar" : "cards");
+  const [sort, setSort] = useState<Sort>("attention");
+  const [filter, setFilter] = useState<string>("all");
   useEffect(() => {
-    if (params.get("modo")) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    try { const v = window.localStorage.getItem(VIEW_KEY); if (v === "calendar" || v === "cards") setView(v); } catch { /* sem armazenamento */ }
+    try {
+      const s = window.localStorage.getItem(SORT_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (s && s in SORTS) setSort(s as Sort);
+      if (params.get("modo")) return;
+      const v = window.localStorage.getItem(VIEW_KEY);
+      if (v === "calendar" || v === "cards") setView(v);
+    } catch { /* sem armazenamento */ }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const choose = (v: View) => {
     setView(v);
     try { window.localStorage.setItem(VIEW_KEY, v); } catch { /* sem armazenamento */ }
     if (params.get("modo")) router.replace(routes.plants());
   };
-  const [growId, setGrowId] = useState<string | null>(null);
+  const chooseSort = (s: Sort) => { setSort(s); try { window.localStorage.setItem(SORT_KEY, s); } catch { /* sem armazenamento */ } };
+
   const grows = useGrows();
   const all = usePlants();
+  const archived = usePlants({ is_active: false });
   const summaries = usePlantSummaries();
   const alerts = useBobAlerts();
-  const [recordPlant, setRecordPlant] = useState<PlantResponse | null>(null);
+  const recommendation = useRecommendation();
+  const planConfigs = usePlanConfigs().data;
   const active = (grows.data ?? []).filter(g => g.status === "active");
-  const activePlants = (all.data ?? []).filter(p => p.is_active && (!growId || p.grow_id === growId) && active.some(g => g.id === p.grow_id));
+  const activePlants = (all.data ?? []).filter(p => p.is_active && active.some(g => g.id === p.grow_id));
+  const growName = (id: string) => active.find(g => g.id === id)?.name ?? null;
+  const summaryOf = (id: string) => summaries.data?.[id] as (PlantSummary & SummaryV3) | undefined;
 
-  // Figma 2160:5532: sem ambiente ainda não há onde pôr uma planta.
-  if (grows.isSuccess && !active.length) {
-    return (
-      <div className="flex max-w-[600px] flex-col gap-4">
-        <PageHeader title="Suas plantas" subtitle="Cadastre quando estiver pronto." />
-        <Notice title="Ainda não há plantas" body="Primeiro, dê um nome ao ambiente. Os detalhes podem ser adicionados depois." />
-        <ButtonLink label="Começar pelo ambiente" href={routes.newGrow()!} />
-      </div>
-    );
-  }
+  // Itens de atenção por ambiente (rega e alertas do Bobby), para a próxima ação de cada planta.
+  const items: AttentionItem[] = active.flatMap(g => {
+    const growPlants = activePlants.filter(p => p.grow_id === g.id);
+    const ids = new Set(growPlants.map(p => p.id));
+    return attentionItems({
+      growId: g.id, growName: g.name, temperature: environmentMeasurement(g.env, "temperature"), humidity: environmentMeasurement(g.env, "humidity"),
+      alerts: (alerts.data?.alerts ?? []).filter(a => ids.has(a.plant_id)),
+      lastWatering: Object.fromEntries(growPlants.map(p => [p.id, summaryOf(p.id)?.last_watering_at])),
+    }).items;
+  });
+  const hrefOf = (item: AttentionItem) => item.target.kind === "diary" ? routes.plantDiary(item.target.id) : item.target.kind === "grow" ? routes.growPanel(item.target.id) : routes.bobbyObservation(item.target.id);
+  const cards = activePlants.map(plant => ({ plant, props: plantPanelProps({ plant, summary: summaryOf(plant.id), growName: growName(plant.grow_id), items, hrefOf, illustrate: false, detailedTags: true }) }));
 
+  const attentionCount = cards.filter(c => c.props.next).length;
+  const chips: { key: string; label: string }[] = [
+    { key: "all", label: `Todas · ${cards.length}` },
+    { key: "attention", label: `Atenção · ${attentionCount}` },
+    ...(active.length > 1 ? active.map(g => ({ key: g.id, label: `${g.name} · ${cards.filter(c => c.plant.grow_id === g.id).length}` })) : []),
+  ];
+  const lastOf = (p: PlantResponse) => { const s = summaryOf(p.id); return s?.last_event?.event_date ?? s?.last_event_at ?? ""; };
+  const shown = cards
+    .filter(c => filter === "all" || (filter === "attention" ? !!c.props.next : c.plant.grow_id === filter))
+    .sort((a, b) => sort === "attention" ? Number(!!b.props.next) - Number(!!a.props.next) || plantDisplayName(a.plant).localeCompare(plantDisplayName(b.plant))
+      : sort === "phase" ? PHASE_ORDER.indexOf(a.plant.current_phase) - PHASE_ORDER.indexOf(b.plant.current_phase)
+        : sort === "name" ? plantDisplayName(a.plant).localeCompare(plantDisplayName(b.plant))
+          : lastOf(b.plant).localeCompare(lastOf(a.plant)));
+
+  // Limite do plano (item 22): usado de total do /billing/recommendation; no limite, "Arquivar uma planta".
+  const rec = recommendation.status === "ok" ? recommendation.rec : null;
+  const usage = rec?.usage.plants;
+  const unlimited = !usage || usage.total == null || usage.total >= 9999;
+  const atLimit = !!usage && !unlimited && usage.used >= usage.total!;
+  const recLabel = rec?.plan_key ? planConfigs?.find(p => p.plan_key === normalizePlan(rec.plan_key!))?.label ?? null : null;
+  const covers = !!rec?.plan_key && rec.reasons.includes("plants_limit") && rec.covers.includes("plants_limit") && !!recLabel;
+  const plantsTo = rec?.changes.find(c => c.key === "plants")?.to;
+
+  const header = (
+    <div className="flex flex-wrap items-center gap-3">
+      <h1 className="font-label flex-1 text-[28px] leading-9 text-text-primary">Suas plantas</h1>
+      {usage && (unlimited
+        ? <Marker>{usage.used} {usage.used === 1 ? "planta" : "plantas"}</Marker>
+        : <span className="flex items-center gap-2"><SegMeter filled={usage.used} total={usage.total!} /><Marker tone={atLimit ? "out" : "plain"}>{usage.used} de {usage.total}</Marker></span>)}
+    </div>
+  );
   const tabs = (
-    <div role="radiogroup" aria-label="Modo de visualização" className="flex w-full rounded-xl border border-display bg-surface p-[5px] md:w-[266px]">
+    <div role="radiogroup" aria-label="Modo de visualização" className="flex w-full rounded-lg border border-display bg-surface p-[4px] md:w-[300px]">
       {(["cards", "calendar"] as const).map(v => (
         <button key={v} type="button" role="radio" aria-checked={view === v} onClick={() => choose(v)}
-          className={`font-label min-h-10 flex-1 rounded-lg text-base leading-[21px] cursor-pointer ${view === v ? "bg-primary text-white" : "text-display"}`}>{v === "cards" ? "CARTÕES" : "CALENDÁRIO"}</button>
+          className={`font-label min-h-10 flex-1 rounded-md text-base leading-[21px] uppercase cursor-pointer ${view === v ? "bg-display text-surface" : "text-display"}`}>{v === "cards" ? "Cartões" : "Calendário"}</button>
       ))}
     </div>
   );
-  const chips = (
-    <div role="radiogroup" aria-label="Ambiente" className="-mx-5 flex gap-2 overflow-x-auto px-5 md:mx-0 md:flex-wrap md:px-0">
-      {[{ id: null, name: "Todos os ambientes" }, ...active].map(g => {
-        const on = growId === g.id;
-        return <button key={g.id ?? "all"} type="button" role="radio" aria-checked={on} onClick={() => setGrowId(g.id)}
-          className={`min-h-11 shrink-0 rounded-full border px-4 text-sm font-semibold cursor-pointer ${on ? "border-primary bg-primary text-white" : "border-input-border bg-surface text-display hover:bg-surface-high"}`}>{g.name}</button>;
-      })}
+  const growFilter = filter !== "all" && filter !== "attention" ? filter : null;
+  // Calendário: só Todas e os ambientes (o filtro de atenção e a ordem são dos cartões).
+  const calendarChips = active.length > 1 && (
+    <div role="radiogroup" aria-label="Ambiente" className="-mx-5 flex gap-1.5 overflow-x-auto px-5 md:mx-0 md:flex-1 md:flex-wrap md:px-0">
+      {[{ key: "all", label: "Todos os ambientes" }, ...active.map(g => ({ key: g.id, label: g.name }))].map(c => (
+        <button key={c.key} type="button" role="radio" aria-checked={(growFilter ?? "all") === c.key} onClick={() => setFilter(c.key)}
+          className={`font-label min-h-9 shrink-0 px-2 text-[13px] leading-4 uppercase cursor-pointer ${(growFilter ?? "all") === c.key ? "bg-display text-surface" : "text-display hover:bg-bg"}`}>{c.label}</button>
+      ))}
     </div>
   );
+  const filters = cards.length >= 2 && (
+    <div className="flex flex-col gap-3 md:flex-1 md:flex-row md:items-center">
+      <div role="radiogroup" aria-label="Filtrar plantas" className="-mx-5 flex gap-1.5 overflow-x-auto px-5 md:mx-0 md:flex-1 md:flex-wrap md:px-0">
+        {chips.map(c => (
+          <button key={c.key} type="button" role="radio" aria-checked={filter === c.key} onClick={() => setFilter(c.key)}
+            className={`font-label min-h-9 shrink-0 px-2 text-[13px] leading-4 uppercase cursor-pointer ${filter === c.key ? "bg-display text-surface" : "text-display hover:bg-bg"}`}>{c.label}</button>
+        ))}
+      </div>
+      <label className="font-label flex items-center gap-2 text-[13px] text-display uppercase">
+        Ordenar:
+        <select value={sort} onChange={e => chooseSort(e.target.value as Sort)} className="font-label min-h-9 cursor-pointer bg-transparent text-[13px] text-display uppercase">
+          {(Object.keys(SORTS) as Sort[]).map(s => <option key={s} value={s}>{SORTS[s]}</option>)}
+        </select>
+      </label>
+    </div>
+  );
+  const archivedCount = archived.data?.length ?? 0;
+  const archivedRow = archivedCount > 0 && (
+    <Link href={routes.archivedPlants()} className="flex min-h-16 items-center gap-3 rounded-2xl border border-stroke bg-surface px-3.5 py-3 hover:bg-surface-high">
+      <span className="flex flex-1 flex-col gap-0.5">
+        <span className="text-base leading-6 font-semibold text-text-primary">Plantas arquivadas e colhidas</span>
+        <span className="text-sm leading-5 text-text-secondary">{archivedCount === 1 ? "1 planta" : `${archivedCount} plantas`} · o histórico continua disponível.</span>
+      </span>
+      <span aria-hidden className="text-text-primary">›</span>
+    </Link>
+  );
+  const limitCard = atLimit && (
+    <PanelCard tone={covers ? "bobby" : undefined} label="Limite do plano">
+      <PanelTitle right={<span className="flex items-center gap-2"><SegMeter filled={usage!.used} total={usage!.total!} /><Marker tone="out">{usage!.used} de {usage!.total}</Marker></span>}>Limite do plano</PanelTitle>
+      {covers && <Marker tone="light">Recomendado para você</Marker>}
+      <p className="text-[15px] leading-[21px] text-text">
+        Você usa {usage!.used} de {usage!.total} {usage!.total === 1 ? "planta" : "plantas"} do seu plano.
+        {covers ? (typeof plantsTo === "number" ? ` O plano ${recLabel} permite ${plantsTo} plantas.` : plantsTo === null ? ` O plano ${recLabel} não tem limite de plantas.` : "") : activePlants.length > 1 ? " Para abrir espaço, abra uma planta e escolha Arquivar." : ""}
+      </p>
+      {covers ? <div className="flex"><PanelButton label="Ver o plano" href={routes.plans()} /></div>
+        : activePlants.length === 1 && <div className="flex"><PanelButton kind="clear" label="Arquivar uma planta" href={routes.plant(activePlants[0].id)} /></div>}
+    </PanelCard>
+  );
+
+  // Sem ambiente ainda não há onde pôr uma planta.
+  if (grows.isSuccess && !active.length) {
+    return (
+      <>
+        {header}
+        <div className="flex max-w-[600px] flex-col gap-4">
+          <Notice title="Ainda não há plantas" body="Primeiro, dê um nome ao ambiente. Os detalhes podem ser adicionados depois." />
+          <div className="flex"><PanelButton label="Começar pelo ambiente" href={routes.newGrow()} /></div>
+        </div>
+      </>
+    );
+  }
+
   const loading = grows.isPending || all.isPending;
   const error = grows.isError || all.isError;
-
   return (
     <>
-      <div className="flex flex-col gap-3 md:flex-row md:items-start">
-        <div className="flex-1">
-          <h1 className="text-[28px] leading-9 font-bold text-text-primary">Suas plantas</h1>
-          <p className="text-sm leading-5 text-text-secondary">{view === "calendar" ? "Calendário de todas as plantas" : all.isSuccess ? `${activePlants.length} ${activePlants.length === 1 ? "planta ativa" : "plantas ativas"}` : ""}</p>
-        </div>
-        {tabs}
-      </div>
-      {chips}
+      {header}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-5">{tabs}{view === "cards" ? filters : calendarChips}</div>
       {loading ? <Spinner /> : error ? <div className="max-w-[600px]"><Button secondary label="Não foi possível carregar. Tentar novamente" onClick={() => void (grows.isError ? grows.refetch() : all.refetch())} /></div>
         : view === "calendar"
-          ? (all.data!.length ? <PlantsCalendar plants={all.data!} grows={active} growId={growId} />
-            : <div className="flex max-w-[600px] flex-col gap-4"><Notice title="Ainda não há plantas" body="Você pode adicionar a primeira planta quando quiser. Os registros de todas as plantas aparecem aqui." /><ButtonLink secondary label="Adicionar planta" href={routes.newPlant(growId ?? undefined)!} /></div>)
-          : <>
-            {activePlants.length ? (
-              <div className="flex flex-col gap-5 md:flex-row md:flex-wrap">
-                {activePlants.map(plant => (
-                  <PlantCard key={plant.id} plant={plant} grow={active.find(g => g.id === plant.grow_id)} summary={summaries.data?.[plant.id]}
-                    advice={alerts.isPending ? "Carregando observações…" : alerts.isError ? "Não foi possível carregar as observações." : alerts.data?.alerts.find(a => a.plant_id === plant.id)?.message ?? "Nenhuma observação retornada. Você pode abrir o histórico e conversar sobre seus registros."}
-                    onRecord={() => setRecordPlant(plant)} />
-                ))}
-              </div>
-            ) : <div className="max-w-[600px]"><Notice title="Ainda não há plantas" body="Você pode adicionar a primeira planta deste ambiente quando quiser. Os detalhes podem ser adicionados depois." /></div>}
-            <div className="flex max-w-[600px] flex-col gap-4">
-              <ButtonLink secondary label="Adicionar planta" href={routes.newPlant(growId ?? undefined)!} />
-              <ActionRow title="Plantas arquivadas" body="O histórico continua disponível." href={routes.archivedPlants()} />
+          ? (all.data!.length ? <PlantsCalendar plants={all.data!} grows={active} growId={growFilter} />
+            : <div className="flex max-w-[600px] flex-col gap-4"><Notice title="Ainda não há plantas" body="Você pode adicionar a primeira planta quando quiser. Os registros de todas as plantas aparecem aqui." /><div className="flex"><PanelButton kind="clear" label="Adicionar planta" href={routes.newPlant()} /></div></div>)
+          : !cards.length ? (
+            // E11: vazio.
+            <div className="flex max-w-[600px] flex-col gap-[14px]">
+              <PanelCard label="Nenhuma planta">
+                <div className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <span className="flex shrink-0 flex-col items-center" aria-hidden><img src="/figma/phase-germination.svg" alt="" width={34} height={42} /><span className="font-label text-xs leading-4 text-display">GÉRMEN</span></span>
+                  <p className="text-[15px] leading-[21px] text-text">Nenhuma planta ainda. Cadastre a primeira para acompanhar fase, rega e registros.</p>
+                </div>
+                <div className="flex"><PanelButton label="Adicionar planta" href={routes.newPlant()} /></div>
+              </PanelCard>
+              {archivedRow}
             </div>
-          </>}
-      {recordPlant && <NewEventPanel open onClose={() => setRecordPlant(null)} plantId={recordPlant.id} growId={recordPlant.grow_id}
-        growLabel={active.find(g => g.id === recordPlant.grow_id)?.name} />}
+          ) : (
+            <div className="flex flex-col gap-[14px] lg:grid lg:grid-cols-3 lg:items-start lg:gap-5">
+              {shown.map(c => <PlantPanel key={c.plant.id} {...c.props} large={cards.length === 1} />)}
+              {!shown.length && <p className="text-[15px] leading-[21px] text-text">Nenhuma planta neste filtro.</p>}
+              {limitCard}
+              {!atLimit && <div className="flex"><PanelButton kind="clear" label="Adicionar planta" href={routes.newPlant(growFilter ?? undefined)} /></div>}
+              {archivedRow}
+            </div>
+          )}
     </>
-  );
-}
-
-/** Cartão de 330 do mobile (Figma 2287:8821), em grade com quebra no desktop (W17). */
-function PlantCard({ plant, grow, summary, advice, onRecord }: { plant: PlantResponse; grow?: GrowSummary; summary?: PlantSummary; advice: string; onRecord: () => void }) {
-  const name = plantDisplayName(plant);
-  const icon = phaseIcon(plant.current_phase);
-  const day = phaseDay(plant);
-  const soft = "flex min-h-12 items-center justify-center gap-2 rounded-lg border-[0.5px] border-stroke-soft bg-surface p-3 text-base font-semibold text-display shadow-[4px_4px_4px_rgba(0,0,0,0.1)] hover:bg-surface-high";
-  return (
-    <article aria-labelledby={`plant-${plant.id}`} className="flex flex-col gap-1 rounded-2xl border-[0.5px] border-stroke bg-surface px-2.5 py-4 md:w-[330px]">
-      <div className="flex h-[156px] items-center justify-center"><img src={summary?.strain_image_url || `/figma/plant-${plantIllustration(plant.id)}.png`} alt="" className="h-[156px] w-[156px] object-contain" /></div>
-      <p className="text-sm leading-5 text-text-muted">Imagem ilustrativa</p>
-      <Link href={routes.plant(plant.id)!} className="flex items-center gap-1.5 hover:underline">
-        <img src="/figma/leaf-small.svg" alt="" /><h2 id={`plant-${plant.id}`} className="font-label text-xl leading-[26px] text-display">{name}</h2><img src="/figma/chevron-right.svg" alt="" />
-      </Link>
-      <p className="pt-0.5 pb-1 text-sm leading-5 text-text-muted">{grow?.name} · histórico da planta</p>
-      <div className="h-px bg-stroke" />
-      <div className="mt-1 flex flex-col gap-1.5 rounded-lg bg-[#E1EBE6] p-2">
-        <div className="flex items-center gap-1.5"><img src="/figma/bobby-plant.svg" alt="" /><h3 className="font-label text-xl leading-[26px] text-display">Acompanhamento do Bobby</h3></div>
-        <p className="text-base leading-6">{advice}</p>
-        <Link href={routes.bobbyObservation(plant.id)!} className={soft}>VER OBSERVAÇÃO</Link>
-      </div>
-      <div className="flex flex-col gap-2 py-2.5">
-        <div className="flex items-center justify-between"><span className="font-label text-base text-display">FASE ATUAL</span>
-          <Link href={routes.plantInfo(plant.id)} aria-label={`Editar fase da ${name}`} className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-bg"><img src="/figma/edit.svg" alt="" /></Link></div>
-        <div className="flex items-center gap-1.5">
-          {icon && <span className="flex min-w-[53px] flex-col items-center"><img src={`/figma/phase-${icon}.svg`} alt="" /><span className="text-sm text-text-muted">{PHASE_ICON_LABEL[icon]}</span></span>}
-          <span><span className="block text-base leading-6">{phases[plant.current_phase]?.label ?? "Fase não informada"}</span>{!!day && <span className="block text-base leading-6">{dayCount(day)} nesta fase</span>}</span>
-        </div>
-      </div>
-      <button type="button" onClick={onRecord} className="mt-1 flex min-h-12 items-center justify-center gap-2.5 rounded-lg bg-primary p-3 text-base font-semibold text-white hover:bg-primary-dark cursor-pointer">NOVO REGISTRO <img src="/figma/arrow-right.svg" alt="" /></button>
-      <Link href={routes.plantDiary(plant.id)!} className={`mt-1 ${soft}`}>ABRIR DIÁRIO <img src="/figma/chevron-right.svg" alt="" /></Link>
-    </article>
   );
 }
