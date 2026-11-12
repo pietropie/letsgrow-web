@@ -100,7 +100,7 @@ export function AssistantMessage({ content, sources, actions, status, streaming 
         <div className="flex gap-0.5">
           {actions.map(a => (
             <button key={a.key} type="button" aria-label={a.label} title={a.label} aria-pressed={a.selected} disabled={a.disabled} onClick={a.onClick}
-              className={`flex h-10 w-10 items-center justify-center rounded-full disabled:opacity-40 cursor-pointer ${a.selected ? "bg-source-highlight" : "hover:bg-surface"}`}><img src={`/figma/${a.icon}.svg`} alt="" /></button>
+              className={`flex h-10 w-10 items-center justify-center rounded-full disabled:opacity-40 cursor-pointer ${a.selected ? "bg-source-highlight" : "hover:bg-bg"}`}><img src={`/figma/${a.icon}.svg`} alt="" /></button>
           ))}
         </div>
       )}
@@ -140,7 +140,7 @@ export function BobbyWelcome({ greeting, suggestions, onSuggestion }: { greeting
       {!!suggestions.length && (
         <div className="grid grid-cols-2 gap-2 pt-2.5">
           {suggestions.map(s => (
-            <button key={s.key} type="button" onClick={() => onSuggestion(s)} className="flex flex-col gap-1 rounded-2xl border-[0.5px] border-stroke bg-surface p-3 text-left hover:border-input-border cursor-pointer">
+            <button key={s.key} type="button" onClick={() => onSuggestion(s)} className="flex flex-col gap-1 rounded-2xl border border-stroke bg-surface p-3 text-left hover:border-input-border cursor-pointer">
               <span className="text-sm leading-5 font-semibold text-text-primary">{s.title}</span>
               <span className="text-xs leading-4 text-text-secondary">{s.subtitle}</span>
             </button>

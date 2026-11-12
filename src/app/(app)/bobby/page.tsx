@@ -388,15 +388,16 @@ function Bobby() {
       style={{ bottom: keyboard ? keyboard : "calc(66px + max(env(safe-area-inset-bottom), 18px))" }}>
       {/* W9: gaveta fixa de 280 a partir de 1024. */}
       <aside aria-label="Conversas" className="hidden w-[280px] shrink-0 border-r border-stroke bg-bg p-4 lg:block">{list}</aside>
-      <section className="flex min-w-0 flex-1 flex-col" aria-label="Conversa com o Bobby">
+      {/* A conversa no creme claro do tema (pedido do usuário, 12 nov); a lista fica no cinza, com a borda à direita. */}
+      <section className="flex min-w-0 flex-1 flex-col bg-surface" aria-label="Conversa com o Bobby">
         <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 md:h-16 md:px-4">
-          <button type="button" aria-label="Conversas" onClick={() => { setPanel("drawer"); void conversations.refetch(); }} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-surface lg:hidden cursor-pointer"><img src="/figma/menu.svg" alt="" /></button>
+          <button type="button" aria-label="Conversas" onClick={() => { setPanel("drawer"); void conversations.refetch(); }} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-bg lg:hidden cursor-pointer"><img src="/figma/menu.svg" alt="" /></button>
           <h1 className="font-label flex-1 truncate text-center text-base text-display md:text-left md:font-sans md:text-lg md:font-semibold md:text-text-primary">
             <span className="md:hidden">BOBBY</span><span className="hidden md:inline">{currentTitle}</span>
           </h1>
           {pill && <div className="hidden md:block">{pill}</div>}
-          {current && <button type="button" onClick={() => { setManageError(null); setManage(current); }} className="hidden min-h-10 rounded-lg px-3 text-sm font-semibold text-text-primary hover:bg-surface md:block cursor-pointer">Renomear ou apagar</button>}
-          <button type="button" aria-label="Nova conversa" onClick={newConversation} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-surface cursor-pointer"><img src="/figma/new-chat.svg" alt="" /></button>
+          {current && <button type="button" onClick={() => { setManageError(null); setManage(current); }} className="hidden min-h-10 rounded-lg px-3 text-sm font-semibold text-text-primary hover:bg-bg md:block cursor-pointer">Renomear ou apagar</button>}
+          <button type="button" aria-label="Nova conversa" onClick={newConversation} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-bg cursor-pointer"><img src="/figma/new-chat.svg" alt="" /></button>
         </div>
         <div ref={listRef} onScroll={e => { const el = e.currentTarget; const up = el.scrollHeight - el.scrollTop - el.clientHeight > 240; if (up !== scrolledUp) setScrolledUp(up); }}
           className="relative flex-1 overflow-y-auto overscroll-contain">
