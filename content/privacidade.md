@@ -33,6 +33,8 @@ Não usamos dados para publicidade, não usamos ID de publicidade, não vendemos
 - ⟦Se for mantido:⟧ Trechos de conversas podem ser revisados pela equipe e, **sem dados que identifiquem você**, incorporados à base de conhecimento usada pelo Bobby para todos os usuários. Você pode pedir que suas conversas não sejam usadas para isso pelo e-mail de contato.
 - Você pode avaliar respostas e denunciar conteúdo inadequado pelo próprio app. Esses avisos são revisados pela equipe.
 
+**Receitas e laudos (dados de saúde).** Se você enviar ao Bobby uma receita, laudo ou o perfil de canabinoides indicado pelo seu médico, usamos essas informações só para sugerir genéticas do nosso catálogo que se aproximem do perfil para cultivo. A imagem ou o PDF é enviado ao provedor de IA para leitura e fica guardado no nosso servidor, com os outros anexos da sua conta, até você excluir a conta. O resumo do perfil (por exemplo, "predominância de CBD, THC < 1%") fica na conversa até você apagá-la ou excluir a conta. São dados pessoais sensíveis (LGPD, art. 11), tratados com o seu consentimento, dado no momento do envio. Recomendamos cobrir nome, documento e dados do médico antes de enviar. O LetsGrow não faz diagnóstico, não indica tratamento nem dose.
+
 ## 5. Com quem os dados são tratados (operadores)
 Usamos fornecedores que tratam dados **em nosso nome**, só para operar o serviço:
 - **Hospedagem e banco de dados:** servidor da Contabo no Brasil (São Paulo);
