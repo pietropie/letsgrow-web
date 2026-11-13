@@ -42,6 +42,9 @@ const MAX_PHOTOS = 4;
 /** Contrato do backend (12 nov): foto ou PDF, até 15 MB. A foto (até HEIC do iPhone) vira JPEG antes de subir. */
 const MAX_PDF_BYTES = 15 * 1024 * 1024;
 const isPdf = (f: File) => f.type === "application/pdf";
+/** Aviso de receita/laudo (pedido da LOJA, 13 nov): aparece no primeiro anexo deste navegador e não trava o seletor. */
+const ATTACH_TIP_KEY = "lg.bobby.attachTip";
+const ATTACH_TIP = "Envie só o necessário. Você pode cobrir nome, documento e dados do médico. O Bobby usa só o perfil de THC/CBD para sugerir genéticas da base.";
 const isPdfKey = (key: string) => /\.pdf$/i.test(key);
 /** Longe do app mais que isso encerra a sessão de uso: o Bobby volta ao B1 (30 min). */
 const SESSION_IDLE_MS = 30 * 60_000;
@@ -100,6 +103,7 @@ function Bobby() {
   const [ratings, setRatings] = useState<Record<string, SavedRating>>({});
   const [rateError, setRateError] = useState<string | null>(null);
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [attachTip, setAttachTip] = useState(false);
   const [feedbackFor, setFeedbackFor] = useState<Message | null>(null);
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [sourcesView, setSourcesView] = useState<{ sources: MessageSource[]; afterFeedback?: boolean } | null>(null);
@@ -219,7 +223,7 @@ function Bobby() {
     }
     const task: Task = { text: clean, files: [...files], ...context, conversationId: conversation, session: session.current };
     setMessages(prev => [...prev, { role: "user", content: clean, localPhotos: task.files.filter(f => !isPdf(f)).map(f => URL.createObjectURL(f)), localFiles: task.files.filter(isPdf).map(f => f.name), timestamp: new Date().toISOString() }]);
-    setInput(""); setFiles([]); setAttachError(null);
+    setInput(""); setFiles([]); setAttachError(null); setAttachTip(false);
     setScrolledUp(false);
     void run(task);
   }
@@ -253,7 +257,7 @@ function Bobby() {
   function newConversation() {
     session.current++;
     controller.current?.abort();
-    setPanel(null); setConversationId(null); setMessages([]); setPending(null); setInput(""); setFiles([]); setOpening(null); setRatings({}); setRateError(null); setAttachError(null);
+    setPanel(null); setConversationId(null); setMessages([]); setPending(null); setInput(""); setFiles([]); setOpening(null); setRatings({}); setRateError(null); setAttachError(null); setAttachTip(false);
   }
   async function openConversation(id: string) {
     const mine = ++session.current;
@@ -279,8 +283,15 @@ function Bobby() {
         : "O Bobby lê fotos e PDF. Este formato ainda não é aceito.");
     setFiles(prev => [...prev, ...ok].slice(0, MAX_PHOTOS));
   }
+  // Abre o seletor na hora; na primeira vez, o aviso de receita/laudo fica acima do campo até a pessoa fechar ou enviar.
+  function openPicker() {
+    try {
+      if (!localStorage.getItem(ATTACH_TIP_KEY)) { setAttachTip(true); localStorage.setItem(ATTACH_TIP_KEY, "1"); }
+    } catch { /* sem armazenamento (aba privada): segue sem o aviso */ }
+    fileInput.current?.click();
+  }
   function pickSuggestion(sg: Suggestion) {
-    if (sg.photo) return fileInput.current?.click();
+    if (sg.photo) return openPicker();
     const context = sg.plantId ? { plantId: sg.plantId, growId: null } : { plantId, growId };
     if (sg.plantId) { setPlantId(sg.plantId); setGrowId(null); }
     submit(sg.prompt ?? sg.title, context);
@@ -373,7 +384,7 @@ function Bobby() {
   const footerView = stoppable ? { text: "Toque em parar para interromper a resposta." }
     : rateError ? { text: rateError, error: true }
     : attachError ? { text: attachError, error: true }
-    : files.length ? { text: `${files.length} de ${MAX_PHOTOS} anexos · PDF de até 15 MB${balance?.enabled ? " · a análise de anexos pode usar créditos" : ""}` }
+    : files.length ? { text: `${files.length} de ${MAX_PHOTOS} anexos · receita ou laudo: cubra nome, documento e dados do médico${balance?.enabled ? " · a análise de anexos pode usar créditos" : ""}` }
     : { text: footer.text, error: footer.limitReached, link: footer.link === "limit" && routes.credits() ? { label: "Ver meu limite", href: routes.credits()! } : null };
 
   // Mostrador compacto (UX item 16): só enquanto a linha de baixo mostraria o uso, não um aviso do momento.
@@ -436,10 +447,11 @@ function Bobby() {
           )}
         </div>
         <div className="mx-auto w-full max-w-[760px] shrink-0 px-3 pt-2 pb-2 md:px-6 md:pb-4">
-          <Composer value={input} onChange={setInput} onSend={() => submit()} onStop={stoppable ? () => controller.current?.abort() : undefined} onAttach={() => fileInput.current?.click()}
+          <Composer value={input} onChange={setInput} onSend={() => submit()} onStop={stoppable ? () => controller.current?.abort() : undefined} onAttach={openPicker}
             notice={showLimit && <InlineCard tone="error" title={paused && footer.month ? `Você usou as ${footer.limit} consultas de ${footer.month}` : "Limite do seu plano"}
               body={limitNotice && !paused ? limitNotice : `Seu histórico continua aberto.${footer.renews ? ` O limite renova em ${footer.renews}.` : ""}`}
-              primary={routes.plans() ? { label: "Ver planos", href: routes.plans()! } : undefined} secondary={{ label: "Entendi", onClick: () => { setLimitDismissed(true); setLimitNotice(null); } }} />}
+              primary={routes.plans() ? { label: "Ver planos", href: routes.plans()! } : undefined} secondary={{ label: "Entendi", onClick: () => { setLimitDismissed(true); setLimitNotice(null); } }} />
+              || attachTip && <InlineCard title="Vai mandar uma receita ou um laudo?" body={ATTACH_TIP} secondary={{ label: "Entendi", onClick: () => setAttachTip(false) }} />}
             contextLabel={contextLabel} contextIcon={plant ? "chip-leaf" : grow ? "context-grow" : "context-all"} onContext={() => setPanel("context")}
             photos={previews} onRemovePhoto={i => setFiles(f => f.filter((_, j) => j !== i))} footer={footerView} usage={pill}
             placeholder={paused ? (footer.renews ? `Envio pausado até ${footer.renews}` : "Envio pausado") : messages.length ? "Pergunte mais" : "Pergunte ao Bobby"}
