@@ -45,11 +45,30 @@ export function Markdown({ text }: { text: string }) {
   );
 }
 
-/** Mensagem da pessoa: surface/bobby, raio 18 com o canto de baixo à direita em 6; fotos de 88 acima. */
-export function MessageBubble({ text, images }: { text: string; images?: string[] }) {
+/** Chip de arquivo (PDF): ícone e nome; com `href`, abre o arquivo; com `onRemove`, tem o "x". */
+export function FileChip({ name, href, onRemove }: { name: string; href?: string; onRemove?: () => void }) {
+  const body = (
+    <>
+      <span aria-hidden className="font-label flex h-8 w-7 shrink-0 items-center justify-center rounded-sm bg-state-error text-[10px] leading-3 text-white">PDF</span>
+      <span className="max-w-[180px] truncate text-sm leading-[18px] font-semibold text-text-primary">{name}</span>
+    </>
+  );
+  const cls = "flex min-h-11 items-center gap-2 rounded-xl border border-stroke bg-surface px-2.5 py-1.5";
   return (
-    <div className="flex flex-col items-end gap-1.5" aria-label={`Você disse: ${text}${images?.length ? `, com ${images.length} ${images.length === 1 ? "foto" : "fotos"}` : ""}`}>
+    <span className="relative inline-flex">
+      {href ? <a href={href} target="_blank" rel="noreferrer" className={`${cls} hover:border-input-border`}>{body}</a> : <span className={cls}>{body}</span>}
+      {onRemove && <button type="button" aria-label={`Remover ${name}`} onClick={e => { e.stopPropagation(); onRemove(); }} className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-display cursor-pointer"><img src="/figma/close-small.svg" alt="" /></button>}
+    </span>
+  );
+}
+
+/** Mensagem da pessoa: surface/bobby, raio 18 com o canto de baixo à direita em 6; fotos de 88 acima. */
+export function MessageBubble({ text, images, files }: { text: string; images?: string[]; files?: { name: string; href?: string }[] }) {
+  const extra = [images?.length ? `${images.length} ${images.length === 1 ? "foto" : "fotos"}` : null, files?.length ? `${files.length} ${files.length === 1 ? "PDF" : "PDFs"}` : null].filter(Boolean).join(" e ");
+  return (
+    <div className="flex flex-col items-end gap-1.5" aria-label={`Você disse: ${text}${extra ? `, com ${extra}` : ""}`}>
       {!!images?.length && <div className="flex max-w-[85%] flex-wrap justify-end gap-1.5">{images.map((src, i) => <img key={i} src={src} alt="" className="h-[88px] w-[88px] rounded-xl object-cover" />)}</div>}
+      {!!files?.length && <div className="flex max-w-[85%] flex-wrap justify-end gap-1.5">{files.map((f, i) => <FileChip key={i} name={f.name} href={f.href} />)}</div>}
       <div className="max-w-[298px] rounded-[18px] rounded-br-md bg-surface-bobby px-3.5 py-2.5 text-base leading-[22px] whitespace-pre-wrap text-text-primary md:max-w-[480px]">{text}</div>
     </div>
   );
@@ -76,7 +95,9 @@ function SourceList({ sources }: { sources: MessageSource[] }) {
       {open && (
         <ul id={id} aria-label="Fontes desta resposta" className="flex flex-col gap-0.5">
           {sources.map(src => (
-            <li key={src.key} className="text-xs leading-[18px] text-text-secondary">
+            <li key={src.key} className="flex items-center gap-1.5 text-xs leading-[18px] text-text-secondary">
+              {/* PDF enviado na conversa (fonte kind "photo" com a chave .pdf): ícone de documento, sem miniatura. */}
+              {src.kind === "photo" && /\.pdf$/i.test(src.key) && <span aria-hidden className="font-label flex h-4 w-3.5 shrink-0 items-center justify-center rounded-[2px] bg-state-error text-[7px] leading-none text-white">PDF</span>}
               {src.href ? <Link href={src.href} className="hover:underline">{src.label}</Link> : src.label}
             </li>
           ))}
@@ -159,7 +180,7 @@ export type ComposerFooterView = { text: string; error?: boolean; link?: { label
  */
 export function Composer({ value, onChange, onSend, onStop, onAttach, contextLabel, contextIcon, onContext, photos, onRemovePhoto, footer, placeholder, paused, sending, notice, usage }: {
   value: string; onChange: (v: string) => void; onSend: () => void; onStop?: () => void; onAttach: () => void;
-  contextLabel: string; contextIcon: string; onContext: () => void; photos: string[]; onRemovePhoto: (i: number) => void;
+  contextLabel: string; contextIcon: string; onContext: () => void; photos: ({ kind: "image"; src: string } | { kind: "file"; name: string })[]; onRemovePhoto: (i: number) => void;
   footer: ComposerFooterView; placeholder: string; paused?: boolean; sending?: boolean; notice?: ReactNode;
   /** M1: no celular, o mostrador compacto toma o lugar da linha de uso; no desktop ele fica no topo da conversa (W23). */
   usage?: ReactNode;
@@ -178,16 +199,18 @@ export function Composer({ value, onChange, onSend, onStop, onAttach, contextLab
       <div className={`flex flex-col gap-2 rounded-3xl border border-input-border bg-surface p-2 focus-within:border-primary ${paused ? "opacity-70" : ""}`} onClick={() => input.current?.focus()}>
         {!!photos.length && (
           <div className="flex gap-2 overflow-x-auto px-1">
-            {photos.map((src, i) => (
-              <div key={src} className="relative shrink-0">
-                <img src={src} alt="" className="h-14 w-14 rounded-lg object-cover" />
+            {photos.map((p, i) => p.kind === "file" ? (
+              <div key={`f${i}${p.name}`} className="flex shrink-0 items-center pt-1.5 pr-1.5"><FileChip name={p.name} onRemove={() => onRemovePhoto(i)} /></div>
+            ) : (
+              <div key={p.src} className="relative shrink-0">
+                <img src={p.src} alt="" className="h-14 w-14 rounded-lg object-cover" />
                 <button type="button" aria-label={`Remover foto ${i + 1}`} onClick={e => { e.stopPropagation(); onRemovePhoto(i); }} className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-display cursor-pointer"><img src="/figma/close-small.svg" alt="" /></button>
               </div>
             ))}
           </div>
         )}
         <div className="flex items-end gap-1.5">
-          <button type="button" aria-label="Adicionar fotos" disabled={paused || photos.length >= 4} onClick={e => { e.stopPropagation(); onAttach(); }}
+          <button type="button" aria-label="Adicionar foto ou PDF de até 15 MB" disabled={paused || photos.length >= 4} onClick={e => { e.stopPropagation(); onAttach(); }}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-bg disabled:opacity-40 cursor-pointer"><img src="/figma/plus.svg" alt="" /></button>
           <textarea ref={input} rows={1} aria-label={placeholder} value={value} placeholder={placeholder} disabled={paused} enterKeyHint="send"
             onChange={e => onChange(e.target.value)}

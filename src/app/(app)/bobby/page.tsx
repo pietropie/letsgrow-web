@@ -27,9 +27,9 @@ import type { ChatMessage } from "@/shared/types/api";
 import type { CreditQuote } from "@/shared/types/features";
 
 /** Fotos locais de uma mensagem que está sendo enviada (pré-visualização); as do histórico vêm por `photo_keys`. */
-type Message = Omit<ChatMessage, "images"> & { localPhotos?: string[] };
+type Message = Omit<ChatMessage, "images"> & { localPhotos?: string[]; localFiles?: string[] };
 /** Uma pergunta com fotos e contexto, para tentar de novo ou confirmar a cotação mandando a mesma coisa. */
-type Task = { text: string; files: File[]; previews: string[]; photoKeys?: string[]; plantId: string | null; growId: string | null; conversationId: string | null; session: number; regenerate?: Message };
+type Task = { text: string; files: File[]; photoKeys?: string[]; plantId: string | null; growId: string | null; conversationId: string | null; session: number; regenerate?: Message };
 type Pending =
   | { kind: "thinking"; status?: string }
   | { kind: "streaming"; text: string; status?: string }
@@ -39,13 +39,21 @@ type Pending =
 
 class PhotoUploadFailed extends Error {}
 const MAX_PHOTOS = 4;
+/** Contrato do backend (12 nov): foto ou PDF, até 15 MB. A foto (até HEIC do iPhone) vira JPEG antes de subir. */
+const MAX_PDF_BYTES = 15 * 1024 * 1024;
+const isPdf = (f: File) => f.type === "application/pdf";
+const isPdfKey = (key: string) => /\.pdf$/i.test(key);
 /** Longe do app mais que isso encerra a sessão de uso: o Bobby volta ao B1 (30 min). */
 const SESSION_IDLE_MS = 30 * 60_000;
 
 function UserMessage({ message }: { message: Message }) {
-  const keys = message.localPhotos?.length ? [] : message.photo_keys ?? [];
+  const local = !!message.localPhotos?.length || !!message.localFiles?.length;
+  const keys = local ? [] : message.photo_keys ?? [];
   const urls = useQueries({ queries: keys.map(key => ({ queryKey: ["uploads", "url", "events", key], queryFn: () => getPhotoUrl(key), staleTime: 50 * 60_000 })) });
-  return <MessageBubble text={message.content} images={message.localPhotos?.length ? message.localPhotos : urls.map(u => u.data).filter((u): u is string => !!u)} />;
+  // Do histórico: a foto vira miniatura; o PDF, um chip que abre o arquivo (URL assinada).
+  const images = local ? message.localPhotos ?? [] : keys.map((k, i) => (isPdfKey(k) ? null : urls[i]?.data)).filter((u): u is string => !!u);
+  const docs = local ? (message.localFiles ?? []).map(name => ({ name })) : keys.map((k, i) => (isPdfKey(k) ? { name: "Arquivo PDF", href: urls[i]?.data } : null)).filter((d): d is { name: string; href: string | undefined } => !!d);
+  return <MessageBubble text={message.content} images={images} files={docs} />;
 }
 
 /** B2 no celular e no tablet: a gaveta abre da esquerda como <dialog> modal, acima das abas, e fecha com Esc ou tocando fora. */
@@ -77,8 +85,8 @@ function Bobby() {
   const linkDraft = params.get("rascunho"), linkPrompt = params.get("pergunta"), linkPlant = params.get("planta"), linkGrow = params.get("ambiente"), linkConversation = params.get("conversa");
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-  const previews = useMemo(() => files.map(f => URL.createObjectURL(f)), [files]);
-  useEffect(() => () => previews.forEach(u => URL.revokeObjectURL(u)), [previews]);
+  const previews = useMemo(() => files.map(f => (isPdf(f) ? { kind: "file" as const, name: f.name } : { kind: "image" as const, src: URL.createObjectURL(f) })), [files]);
+  useEffect(() => () => previews.forEach(p => { if (p.kind === "image") URL.revokeObjectURL(p.src); }), [previews]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [plantId, setPlantId] = useState<string | null>(linkPlant);
   const [growId, setGrowId] = useState<string | null>(linkPlant ? null : linkGrow);
@@ -91,6 +99,7 @@ function Bobby() {
   const [panel, setPanel] = useState<"context" | "drawer" | null>(null);
   const [ratings, setRatings] = useState<Record<string, SavedRating>>({});
   const [rateError, setRateError] = useState<string | null>(null);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const [feedbackFor, setFeedbackFor] = useState<Message | null>(null);
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [sourcesView, setSourcesView] = useState<{ sources: MessageSource[]; afterFeedback?: boolean } | null>(null);
@@ -208,9 +217,9 @@ function Bobby() {
       if (pending.task.regenerate) { const previous = pending.task.regenerate; setMessages(prev => [...prev, previous]); }
       else setMessages(prev => prev[prev.length - 1]?.role === "user" ? prev.slice(0, -1) : prev);
     }
-    const task: Task = { text: clean, files: [...files], previews: [...previews], ...context, conversationId: conversation, session: session.current };
-    setMessages(prev => [...prev, { role: "user", content: clean, localPhotos: task.files.map(f => URL.createObjectURL(f)), timestamp: new Date().toISOString() }]);
-    setInput(""); setFiles([]);
+    const task: Task = { text: clean, files: [...files], ...context, conversationId: conversation, session: session.current };
+    setMessages(prev => [...prev, { role: "user", content: clean, localPhotos: task.files.filter(f => !isPdf(f)).map(f => URL.createObjectURL(f)), localFiles: task.files.filter(isPdf).map(f => f.name), timestamp: new Date().toISOString() }]);
+    setInput(""); setFiles([]); setAttachError(null);
     setScrolledUp(false);
     void run(task);
   }
@@ -218,7 +227,7 @@ function Bobby() {
     if (busy || pending || !answer.id) return;
     const question = [...messages].reverse().find(m => m.role === "user");
     setMessages(prev => prev.slice(0, -1));
-    void run({ text: question?.content ?? "", files: [], previews: [], plantId, growId, conversationId, session: session.current, regenerate: answer });
+    void run({ text: question?.content ?? "", files: [], plantId, growId, conversationId, session: session.current, regenerate: answer });
   }
   async function rate(answer: Message, rating: "up" | "down", reason?: FeedbackReason, message?: string) {
     if (!conversationId || !answer.id) return false;
@@ -244,7 +253,7 @@ function Bobby() {
   function newConversation() {
     session.current++;
     controller.current?.abort();
-    setPanel(null); setConversationId(null); setMessages([]); setPending(null); setInput(""); setFiles([]); setOpening(null); setRatings({}); setRateError(null);
+    setPanel(null); setConversationId(null); setMessages([]); setPending(null); setInput(""); setFiles([]); setOpening(null); setRatings({}); setRateError(null); setAttachError(null);
   }
   async function openConversation(id: string) {
     const mine = ++session.current;
@@ -259,9 +268,16 @@ function Bobby() {
       if (mine === session.current) setOpening({ id, failed: true });
     }
   }
+  // Antes o que não era foto sumia calado (um PDF de receita não subia e nada era dito, 12 nov). Agora a pessoa sabe o porquê.
   function addPhotos(list: FileList | null) {
     if (!list) return;
-    setFiles(prev => [...prev, ...Array.from(list).filter(f => f.type.startsWith("image/"))].slice(0, MAX_PHOTOS));
+    const all = Array.from(list);
+    const ok = all.filter(f => f.type.startsWith("image/") || (isPdf(f) && f.size <= MAX_PDF_BYTES));
+    const rejected = all.filter(f => !ok.includes(f));
+    setAttachError(!rejected.length ? null
+      : rejected.some(isPdf) ? "O PDF passou de 15 MB. Envie um arquivo menor ou uma foto da página."
+        : "O Bobby lê fotos e PDF. Este formato ainda não é aceito.");
+    setFiles(prev => [...prev, ...ok].slice(0, MAX_PHOTOS));
   }
   function pickSuggestion(sg: Suggestion) {
     if (sg.photo) return fileInput.current?.click();
@@ -356,11 +372,12 @@ function Bobby() {
   const showLimit = !limitDismissed && (paused || !!limitNotice);
   const footerView = stoppable ? { text: "Toque em parar para interromper a resposta." }
     : rateError ? { text: rateError, error: true }
-    : files.length ? { text: `${files.length} de ${MAX_PHOTOS} fotos${balance?.enabled ? " · a análise de fotos pode usar créditos" : ""}` }
+    : attachError ? { text: attachError, error: true }
+    : files.length ? { text: `${files.length} de ${MAX_PHOTOS} anexos · PDF de até 15 MB${balance?.enabled ? " · a análise de anexos pode usar créditos" : ""}` }
     : { text: footer.text, error: footer.limitReached, link: footer.link === "limit" && routes.credits() ? { label: "Ver meu limite", href: routes.credits()! } : null };
 
   // Mostrador compacto (UX item 16): só enquanto a linha de baixo mostraria o uso, não um aviso do momento.
-  const pill = usageMeter.status === "ok" && !stoppable && !rateError && !files.length ? <UsageCompact usage={usageMeter.usage} /> : null;
+  const pill = usageMeter.status === "ok" && !stoppable && !rateError && !attachError && !files.length ? <UsageCompact usage={usageMeter.usage} /> : null;
 
   function renderPending(p: Pending) {
     if (p.kind === "thinking") return <ThinkingMessage status={p.status} />;
@@ -428,7 +445,7 @@ function Bobby() {
             placeholder={paused ? (footer.renews ? `Envio pausado até ${footer.renews}` : "Envio pausado") : messages.length ? "Pergunte mais" : "Pergunte ao Bobby"}
             paused={paused} sending={busy} />
           {/* B5: no iPhone o seletor oferece câmera e fototeca; até 4 fotos por mensagem. */}
-          <input ref={fileInput} type="file" accept="image/*" multiple className="hidden" onChange={e => { addPhotos(e.target.files); e.target.value = ""; }} />
+          <input ref={fileInput} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={e => { addPhotos(e.target.files); e.target.value = ""; }} />
         </div>
       </section>
 

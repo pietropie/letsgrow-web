@@ -8,8 +8,9 @@ import { ACCESS_COOKIE, API_URL, REFRESH_COOKIE, clearSession, isTrustedWrite, r
  */
 export const dynamic = "force-dynamic";
 
-const MAX_BYTES = 8 * 1024 * 1024;
-const TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+/** Contrato do backend (12 nov): foto ou PDF, até 15 MB. As fotos chegam já reduzidas a JPEG pelo navegador. */
+const MAX_BYTES = 15 * 1024 * 1024;
+const TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 
 export async function POST(req: NextRequest) {
   if (!isTrustedWrite(req)) return NextResponse.json({ detail: "Origem não permitida" }, { status: 403 });
@@ -20,8 +21,8 @@ export async function POST(req: NextRequest) {
   let file: File | null = null;
   try { file = (await req.formData()).get("file") as File | null; } catch { /* corpo inválido */ }
   if (!file || typeof file.arrayBuffer !== "function") return NextResponse.json({ detail: "Envie a foto no campo file." }, { status: 422 });
-  if (!TYPES.has(file.type)) return NextResponse.json({ detail: "Use uma foto JPEG, PNG ou WebP." }, { status: 422 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ detail: "A foto passou de 8 MB." }, { status: 413 });
+  if (!TYPES.has(file.type)) return NextResponse.json({ detail: "Envie uma foto ou um PDF." }, { status: 422 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ detail: "O arquivo passou de 15 MB." }, { status: 413 });
 
   let renewed: Tokens | null = null;
   const presign = (token?: string) => fetch(`${API_URL}/uploads/presign`, {

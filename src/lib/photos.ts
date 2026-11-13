@@ -34,14 +34,15 @@ export async function shrinkPhoto(file: File, { maxSide = MAX_SIDE, quality = 0.
 }
 
 /**
- * Reduz e envia; devolve as chaves privadas (photo_keys) na mesma ordem. O Bobby usa { maxSide: 768, quality: 0.6 },
+ * Reduz e envia; devolve as chaves privadas (photo_keys) na mesma ordem. Um PDF (chat do Bobby) sobe sem mudança. O Bobby usa { maxSide: 768, quality: 0.6 },
  * perto do que o mobile manda para a análise (768 px).
  */
 export async function uploadEventPhotos(files: File[], options?: ShrinkOptions): Promise<string[]> {
   const keys: string[] = [];
   for (const file of files) {
     const body = new FormData();
-    body.append("file", await shrinkPhoto(file, options), "foto.jpg");
+    if (file.type === "application/pdf") body.append("file", file, file.name || "arquivo.pdf");
+    else body.append("file", await shrinkPhoto(file, options), "foto.jpg");
     const res = await fetch("/api/upload", { method: "POST", body, headers: { [WEB_HEADER]: "1" } });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.object_key) throw new ApiError(res.status, data ?? { detail: "Não foi possível enviar a foto." });
