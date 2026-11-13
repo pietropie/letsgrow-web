@@ -8,6 +8,8 @@
   --color-bg: #E2E1E0;
   --color-surface: #F8F5F2;
   --color-surface-high: #F7F6F3;
+  /* Fundo da conversa do Bobby (pedido do usuário, 12 nov: nem o creme nem o branco puro). */
+  --color-surface-chat: #F8F7F6;
   --color-border: #B6BDB6;
   --color-primary: #485D50;
   --color-primary-dark: #2C4330;

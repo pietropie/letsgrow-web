@@ -388,8 +388,8 @@ function Bobby() {
       style={{ bottom: keyboard ? keyboard : "calc(66px + max(env(safe-area-inset-bottom), 18px))" }}>
       {/* W9: gaveta fixa de 280 a partir de 1024. */}
       <aside aria-label="Conversas" className="hidden w-[280px] shrink-0 border-r border-stroke bg-bg p-4 lg:block">{list}</aside>
-      {/* A conversa no creme claro do tema (pedido do usuário, 12 nov); a lista fica no cinza, com a borda à direita. */}
-      <section className="flex min-w-0 flex-1 flex-col bg-surface" aria-label="Conversa com o Bobby">
+      {/* A conversa no fundo próprio do tema, #F8F7F6 (pedido do usuário, 12 nov; antes creme e branco); a lista fica no cinza, com a borda à direita. */}
+      <section className="flex min-w-0 flex-1 flex-col bg-surface-chat" aria-label="Conversa com o Bobby">
         <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 md:h-16 md:px-4">
           <button type="button" aria-label="Conversas" onClick={() => { setPanel("drawer"); void conversations.refetch(); }} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-bg lg:hidden cursor-pointer"><img src="/figma/menu.svg" alt="" /></button>
           <h1 className="font-label flex-1 truncate text-center text-base text-display md:text-left md:font-sans md:text-lg md:font-semibold md:text-text-primary">
