@@ -62,13 +62,40 @@ export function FileChip({ name, href, onRemove }: { name: string; href?: string
   );
 }
 
+/**
+ * Anexo do histórico (contrato de 15 nov): miniatura ou chip, a validade embaixo ("Disponível até 13/12") e, na foto,
+ * "Guardar essa foto no calendário" ou "Guardada no calendário" com o link do registro. Vencido: "Anexo expirado".
+ */
+export function ChatAttachmentItem({ kind, url, until, save, onSave, saving }: {
+  kind: "image" | "pdf" | "expired"; url: string | null; until: string | null;
+  save: { kind: "none" } | { kind: "can" } | { kind: "saved"; href: string }; onSave?: () => void; saving?: boolean;
+}) {
+  if (kind === "expired") {
+    return <span className="flex min-h-11 items-center gap-2 rounded-xl border border-stroke bg-surface px-3 text-sm leading-[18px] text-text-secondary">Anexo expirado</span>;
+  }
+  return (
+    <div className="flex max-w-[220px] flex-col items-end gap-1">
+      {kind === "pdf" ? <FileChip name="Arquivo PDF" href={url ?? undefined} />
+        : <a href={url ?? undefined} target="_blank" rel="noreferrer" aria-label="Abrir a foto"><img src={url ?? ""} alt="" className="h-[88px] w-[88px] rounded-xl object-cover" /></a>}
+      {until && <span className="text-xs leading-4 text-text-secondary">{until}</span>}
+      {save.kind === "can" && (
+        <button type="button" onClick={onSave} disabled={saving} className="min-h-8 rounded-full border border-input-border px-3 text-right text-xs leading-4 font-semibold text-text-primary hover:bg-bg disabled:opacity-50 cursor-pointer">
+          {saving ? "Guardando…" : "Guardar essa foto no calendário"}
+        </button>
+      )}
+      {save.kind === "saved" && <Link href={save.href} className="text-xs leading-4 font-semibold text-text-primary underline">Guardada no calendário</Link>}
+    </div>
+  );
+}
+
 /** Mensagem da pessoa: surface/bobby, raio 18 com o canto de baixo à direita em 6; fotos de 88 acima. */
-export function MessageBubble({ text, images, files }: { text: string; images?: string[]; files?: { name: string; href?: string }[] }) {
+export function MessageBubble({ text, images, files, attachments }: { text: string; images?: string[]; files?: { name: string; href?: string }[]; attachments?: ReactNode }) {
   const extra = [images?.length ? `${images.length} ${images.length === 1 ? "foto" : "fotos"}` : null, files?.length ? `${files.length} ${files.length === 1 ? "PDF" : "PDFs"}` : null].filter(Boolean).join(" e ");
   return (
     <div className="flex flex-col items-end gap-1.5" aria-label={`Você disse: ${text}${extra ? `, com ${extra}` : ""}`}>
       {!!images?.length && <div className="flex max-w-[85%] flex-wrap justify-end gap-1.5">{images.map((src, i) => <img key={i} src={src} alt="" className="h-[88px] w-[88px] rounded-xl object-cover" />)}</div>}
       {!!files?.length && <div className="flex max-w-[85%] flex-wrap justify-end gap-1.5">{files.map((f, i) => <FileChip key={i} name={f.name} href={f.href} />)}</div>}
+      {attachments && <div className="flex max-w-[85%] flex-wrap items-start justify-end gap-3">{attachments}</div>}
       <div className="max-w-[298px] rounded-[18px] rounded-br-md bg-surface-bobby px-3.5 py-2.5 text-base leading-[22px] whitespace-pre-wrap text-text-primary md:max-w-[480px]">{text}</div>
     </div>
   );

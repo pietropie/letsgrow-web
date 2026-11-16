@@ -5,6 +5,7 @@ import type { ChatMessage, ConversationSummary } from "@/shared/types/api";
 import type { BobMemory, CreditBalance, CreditQuote } from "@/shared/types/features";
 import { ChatCancelled, HttpError, StreamUnavailable, feedbackBody, offensiveFallback, readChatStream, sendChat, type ChatResult, type FeedbackReason, type StreamHandlers } from "@/shared/lib/chatStream";
 import { ApiError, WEB_HEADER, api } from "./api";
+import type { ChatAttachment } from "./chat-attachments";
 
 /**
  * Bobby na web, igual ao letsgrow-mobile/lib/bobbyApi.ts: POST /ai/chat/stream pelo BFF (que repassa o corpo sem buffer)
@@ -84,7 +85,14 @@ export function requestQuote(body: { task: "chat_message" | "photo_analysis"; pl
   return api<CreditQuote>("/credits/quote", { method: "POST", body });
 }
 
-export type ConversationDetail = { id: string; grow_id: string | null; plant_id: string | null; title: string | null; messages: ChatMessage[]; created_at: string; updated_at: string };
+/** `attachments`: contrato de 15 nov (30 dias, guardar no calendário); opcional até o deploy do backend. */
+export type ConversationMessage = ChatMessage & { attachments?: ChatAttachment[] };
+export type ConversationDetail = { id: string; grow_id: string | null; plant_id: string | null; title: string | null; messages: ConversationMessage[]; created_at: string; updated_at: string };
+
+/** POST /ai/conversations/{id}/attachments/save: copia a foto para um registro da planta (fora dos 30 dias). Repetir não duplica. */
+export function saveChatAttachment(conversationId: string, body: { message_id: string; photo_key: string; plant_id: string; event_date?: string }) {
+  return api<{ event_id: string; plant_id: string; event_date: string; photo_url: string | null }>(`/ai/conversations/${conversationId}/attachments/save`, { method: "POST", body });
+}
 export const getConversation = (id: string) => api<ConversationDetail>(`/ai/conversations/${id}`);
 
 /** As 30 conversas mais recentes; `q` busca no título e no texto. */

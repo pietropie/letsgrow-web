@@ -164,7 +164,7 @@ export function ChoiceField({ label, hint = "Toque para escolher.", value, optio
  * Figma W22 Feedback/ConfirmDialog: diálogo central de 480 no lugar do Alert do mobile. <dialog> nativo:
  * foco preso, Esc fecha, fundo escurecido a 40 %.
  */
-export function ConfirmDialog({ open, title, message, confirm, destructive = false, busy = false, onConfirm, onCancel }: { open: boolean; title: string; message: string; confirm: string; destructive?: boolean; busy?: boolean; onConfirm: () => void; onCancel: () => void }) {
+export function ConfirmDialog({ open, title, message, confirm, destructive = false, busy = false, disabled = false, children, onConfirm, onCancel }: { open: boolean; title: string; message: string; confirm: string; destructive?: boolean; busy?: boolean; disabled?: boolean; children?: ReactNode; onConfirm: () => void; onCancel: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -177,9 +177,10 @@ export function ConfirmDialog({ open, title, message, confirm, destructive = fal
       <div className="flex flex-col gap-4 p-5">
         <h2 id="confirm-title" className="text-lg leading-6 font-semibold">{title}</h2>
         <p className="text-base leading-6">{message}</p>
+        {children}
         <div className="flex flex-col-reverse gap-2 sm:flex-row">
           <button type="button" onClick={onCancel} disabled={busy} className={`${buttonBase} ${buttonKind.secondary}`}>Cancelar</button>
-          <button type="button" onClick={onConfirm} disabled={busy} aria-busy={busy || undefined}
+          <button type="button" onClick={onConfirm} disabled={busy || disabled} aria-busy={busy || undefined}
             className={`${buttonBase} ${destructive ? "bg-error text-white hover:opacity-90" : buttonKind.primary}`}>{confirm}</button>
         </div>
       </div>

@@ -4,12 +4,13 @@
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { AssistantMessage, BobbyWelcome, Composer, ContextPanel, ConversationList, FeedbackPanel, InlineCard, ManageConversationPanel, MessageBubble, ThinkingMessage, type DrawerConversation, type MessageAction, type MessageSource } from "@/components/bobby/ui";
+import { AssistantMessage, BobbyWelcome, ChatAttachmentItem, Composer, ContextPanel, ConversationList, FeedbackPanel, InlineCard, ManageConversationPanel, MessageBubble, ThinkingMessage, type DrawerConversation, type MessageAction, type MessageSource } from "@/components/bobby/ui";
 import { SourcesPanel } from "@/components/bobby/sources-panel";
 import { UsageCompact } from "@/components/usage";
-import { ConfirmDialog, Spinner } from "@/components/ui";
+import { ChoiceField, ConfirmDialog, Spinner } from "@/components/ui";
 import { ApiError } from "@/lib/api";
-import { askBobby, getConversation, getPhotoUrl, rateAnswer, regenerateAnswer, requestQuote, useConversations, useCreditBalance, useDeleteConversation, useRenameConversation, type ChatBody } from "@/lib/bobby";
+import { askBobby, getConversation, getPhotoUrl, rateAnswer, regenerateAnswer, requestQuote, saveChatAttachment, useConversations, useCreditBalance, useDeleteConversation, useRenameConversation, type ChatBody, type ConversationMessage } from "@/lib/bobby";
+import { EXPIRED_REGENERATE, attachmentViews, markSaved, saveErrorMessage } from "@/lib/chat-attachments";
 import { useBobAlerts, useGrows, usePlanStatus, usePlantSummaries, usePlants } from "@/lib/hooks";
 import { uploadEventPhotos } from "@/lib/photos";
 import { routes } from "@/lib/routes";
@@ -23,11 +24,10 @@ import { ChatCancelled, FEEDBACK_REASONS, answerSources, StreamFailed, savedRati
 import { planLimitMessage, rejectionMessage } from "@/shared/lib/errors";
 import { phaseDay } from "@/shared/lib/phaseDay";
 import { plantDisplayName } from "@/shared/lib/plantIdentity";
-import type { ChatMessage } from "@/shared/types/api";
 import type { CreditQuote } from "@/shared/types/features";
 
 /** Fotos locais de uma mensagem que está sendo enviada (pré-visualização); as do histórico vêm por `photo_keys`. */
-type Message = Omit<ChatMessage, "images"> & { localPhotos?: string[]; localFiles?: string[] };
+type Message = Omit<ConversationMessage, "images"> & { localPhotos?: string[]; localFiles?: string[] };
 /** Uma pergunta com fotos e contexto, para tentar de novo ou confirmar a cotação mandando a mesma coisa. */
 type Task = { text: string; files: File[]; photoKeys?: string[]; plantId: string | null; growId: string | null; conversationId: string | null; session: number; regenerate?: Message };
 type Pending =
@@ -49,13 +49,21 @@ const isPdfKey = (key: string) => /\.pdf$/i.test(key);
 /** Longe do app mais que isso encerra a sessão de uso: o Bobby volta ao B1 (30 min). */
 const SESSION_IDLE_MS = 30 * 60_000;
 
-function UserMessage({ message }: { message: Message }) {
+function UserMessage({ message, savedPlants, savingKey, onSave }: { message: Message; savedPlants: Record<string, string>; savingKey: string | null; onSave: (message: Message, key: string) => void }) {
   const local = !!message.localPhotos?.length || !!message.localFiles?.length;
-  const keys = local ? [] : message.photo_keys ?? [];
+  // Contrato de 15 nov: com `attachments`, cada anexo traz a própria URL, a validade e se pode ir para o calendário.
+  const views = local ? null : attachmentViews(message.attachments, savedPlants);
+  const keys = local || views ? [] : message.photo_keys ?? [];
   const urls = useQueries({ queries: keys.map(key => ({ queryKey: ["uploads", "url", "events", key], queryFn: () => getPhotoUrl(key), staleTime: 50 * 60_000 })) });
   // Do histórico: a foto vira miniatura; o PDF, um chip que abre o arquivo (URL assinada).
   const images = local ? message.localPhotos ?? [] : keys.map((k, i) => (isPdfKey(k) ? null : urls[i]?.data)).filter((u): u is string => !!u);
   const docs = local ? (message.localFiles ?? []).map(name => ({ name })) : keys.map((k, i) => (isPdfKey(k) ? { name: "Arquivo PDF", href: urls[i]?.data } : null)).filter((d): d is { name: string; href: string | undefined } => !!d);
+  if (views?.length) {
+    return <MessageBubble text={message.content} attachments={views.map(v => (
+      <ChatAttachmentItem key={v.key} kind={v.kind} url={v.url} until={v.until} saving={savingKey === v.key} onSave={() => onSave(message, v.key)}
+        save={v.save.kind === "saved" ? { kind: "saved", href: v.save.plantId ? routes.diaryEntry(v.save.plantId, v.save.eventId) : routes.plantsCalendar() ?? routes.plants() } : v.save} />
+    ))} />;
+  }
   return <MessageBubble text={message.content} images={images} files={docs} />;
 }
 
@@ -104,6 +112,12 @@ function Bobby() {
   const [rateError, setRateError] = useState<string | null>(null);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [attachTip, setAttachTip] = useState(false);
+  // "Guardar essa foto no calendário": a foto escolhida, a planta (a da conversa já marcada) e o que já foi guardado nesta visita.
+  const [saveTarget, setSaveTarget] = useState<{ message: Message; key: string } | null>(null);
+  const [savePlant, setSavePlant] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [savedPlants, setSavedPlants] = useState<Record<string, string>>({});
   const [feedbackFor, setFeedbackFor] = useState<Message | null>(null);
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [sourcesView, setSourcesView] = useState<{ sources: MessageSource[]; afterFeedback?: boolean } | null>(null);
@@ -186,6 +200,8 @@ function Bobby() {
       }
       const limit = planLimitMessage(e);
       if (limit) { setLimitNotice(limit); setLimitDismissed(false); giveBack(task); return; }
+      // Gerar de novo uma pergunta cujo anexo venceu (30 dias): 409, a resposta anterior fica.
+      if (task.regenerate && (e as ApiError).response?.status === 409) return setPending({ kind: "failed", task, reason: rejectionMessage(e) ?? EXPIRED_REGENERATE });
       setPending({ kind: "failed", task, reason: e instanceof StreamFailed ? null : rejectionMessage(e) });
     } finally {
       if (controller.current === ctrl) controller.current = null;
@@ -270,6 +286,29 @@ function Bobby() {
       setConversationId(id); setPlantId(detail.plant_id ?? null); setGrowId(detail.grow_id ?? null); setMessages(detail.messages ?? []); setRatings(savedRatings(detail.messages ?? [])); setOpening(null);
     } catch {
       if (mine === session.current) setOpening({ id, failed: true });
+    }
+  }
+  function openSave(message: Message, key: string) {
+    if (!message.id || !conversationId) return;
+    setSaveTarget({ message, key }); setSaveError(null);
+    setSavePlant(plants?.some(p => p.id === plantId) ? plantId! : plants?.[0]?.id ?? "");
+  }
+  async function confirmSave() {
+    const target = saveTarget;
+    if (!target?.message.id || !conversationId || !savePlant) return;
+    setSavingKey(target.key); setSaveError(null);
+    try {
+      const saved = await saveChatAttachment(conversationId, { message_id: target.message.id, photo_key: target.key, plant_id: savePlant });
+      setMessages(prev => prev.map(m => (m.id === target.message.id ? { ...m, attachments: markSaved(m.attachments, target.key, saved.event_id, saved.plant_id) } : m)));
+      setSavedPlants(prev => ({ ...prev, [saved.event_id]: saved.plant_id }));
+      setSaveTarget(null);
+      void client.invalidateQueries({ queryKey: ["plants", saved.plant_id, "events"] });
+      void client.invalidateQueries({ queryKey: ["diary"] });
+      void client.invalidateQueries({ queryKey: ["plants", "summaries"] });
+    } catch (e) {
+      setSaveError(saveErrorMessage((e as ApiError).response?.status, rejectionMessage(e)));
+    } finally {
+      setSavingKey(null);
     }
   }
   // Antes o que não era foto sumia calado (um PDF de receita não subia e nada era dito, 12 nov). Agora a pessoa sabe o porquê.
@@ -436,7 +475,7 @@ function Bobby() {
               : !messages.length && !pending ? <BobbyWelcome greeting={mounted ? greeting(me.data?.full_name, new Date().getHours()) : ""} suggestions={suggestions} onSuggestion={pickSuggestion} />
               : <>
                 {messages.map((m, i) => m.role === "user"
-                  ? <UserMessage key={`m${i}`} message={m} />
+                  ? <UserMessage key={`m${i}`} message={m} savedPlants={savedPlants} savingKey={savingKey} onSave={openSave} />
                   : <AssistantMessage key={`m${i}`} content={m.content} sources={chips(m.sources)} actions={actions(m, i === lastAnswer && i === messages.length - 1)} />)}
                 {pending && <div key="pending">{renderPending(pending)}</div>}
               </>}
@@ -470,6 +509,14 @@ function Bobby() {
       {manage && <ManageConversationPanel key={manage.id} conversation={manage} onClose={() => setManage(null)} saving={rename.isPending} error={manageError}
         onRename={title => rename.mutate({ id: manage.id, title }, { onSuccess: () => setManage(null), onError: e => { setManageError(rejectionMessage(e) ?? "Não foi possível confirmar o novo nome. Confira a lista."); void conversations.refetch(); } })}
         onDelete={() => setConfirmDelete(manage)} />}
+      <ConfirmDialog open={!!saveTarget} title="Guardar no calendário" confirm={savingKey ? "Guardando…" : "Guardar"} busy={!!savingKey} disabled={!savePlant}
+        message="A foto vira um registro da planta, com a data em que você a enviou, e não vence com os anexos da conversa."
+        onConfirm={() => void confirmSave()} onCancel={() => { if (!savingKey) setSaveTarget(null); }}>
+        {plants?.length
+          ? <ChoiceField label="Planta" hint="" value={savePlant} onChange={setSavePlant} options={plants.map(p => ({ value: p.id, label: plantDisplayName(p) }))} />
+          : <p className="text-sm leading-5 text-text-secondary">Você ainda não tem plantas ativas para guardar a foto.</p>}
+        {saveError && <p role="alert" className="text-sm leading-5 text-state-error">{saveError}</p>}
+      </ConfirmDialog>
       <ConfirmDialog open={!!confirmDelete} title="Apagar conversa?" message="A conversa e as avaliações das respostas dela são apagadas. A memória do Bobby não muda."
         confirm="Apagar" destructive busy={remove.isPending} onConfirm={() => confirmDelete && deleteConversation(confirmDelete)} onCancel={() => setConfirmDelete(null)} />
       {feedbackFor && <FeedbackPanel key={feedbackFor.id} open onClose={() => setFeedbackFor(null)} initial={feedbackFor.id ? ratings[feedbackFor.id]?.reason : null} reasons={FEEDBACK_REASONS}
