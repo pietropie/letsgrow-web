@@ -28,8 +28,8 @@ O LetsGrow é um diário e assistente de cultivo de plantas, **somente para maio
 Não usamos dados para publicidade, não usamos ID de publicidade, não vendemos dados e não criamos perfil público. Os seus registros não são mostrados a outros usuários.
 
 ## 4. Inteligência artificial (Bobby)
-- As respostas do Bobby são geradas por IA (atualmente o Google Gemini) e podem conter erros. Elas não substituem orientação médica, agronômica ou jurídica.
-- Para responder, enviamos ao provedor de IA a sua pergunta, as fotos que você anexar e trechos relevantes dos seus registros. O provedor processa esses dados em nosso nome e não pode usá-los para outros fins, conforme os termos do serviço contratado.
+- As respostas do Bobby são geradas por inteligência artificial e podem conter erros. Elas não substituem orientação médica, agronômica ou jurídica.
+- Para responder, enviamos ao provedor de IA a sua pergunta, os anexos que você enviar e as informações dos seus registros necessárias para a resposta. O provedor processa esses dados em nosso nome e não pode usá-los para outros fins, conforme os termos do serviço contratado.
 - Trechos de conversas podem ser revisados pela equipe e, **sem dados que identifiquem você**, incorporados à base de conhecimento usada pelo Bobby para todos os usuários. Você pode pedir que suas conversas não sejam usadas para isso pelo e-mail privacidade@letsgrowapp.com.br.
 - Você pode avaliar respostas e denunciar conteúdo inadequado pelo próprio app. Esses avisos são revisados pela equipe.
 
@@ -39,7 +39,7 @@ Não usamos dados para publicidade, não usamos ID de publicidade, não vendemos
 Usamos fornecedores que tratam dados **em nosso nome**, só para operar o serviço:
 - **Hospedagem e banco de dados:** servidor da Contabo no Brasil (São Paulo);
 - **Cópias de segurança:** Cloudflare R2 (guardadas por até 35 dias);
-- **IA:** Google (Gemini);
+- **Inteligência artificial:** provedor de IA contratado, que processa os dados só para gerar as respostas;
 - **E-mail transacional:** Resend;
 - **Clima:** Open-Meteo, que recebe só as coordenadas arredondadas do ambiente;
 - **Notificações:** Expo e Google Firebase Cloud Messaging;
