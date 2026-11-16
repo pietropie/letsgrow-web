@@ -2,12 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { EntryPage } from "@/components/entry-page";
-import { Button, ButtonLink, CheckRow, FormError, PageSubtitle, PageTitle, PasswordField, TextField } from "@/components/ui";
+import { AdultCheck, EntryButton, EntryField, EntryShell, EntryTitle, ErrorBox, SmallLink, StepMeter } from "@/components/entry";
 import { api } from "@/lib/api";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { localError, registerError, type EntryError, type EntryField as Field } from "@/lib/entry";
 
-/** Mesmo fluxo do mobile (app/(auth)/register.tsx): a conta nasce sem verificação e o código vai por e-mail. */
+/**
+ * UX item 25: L3 no celular, W8p no web (Figma 2431:24166, 2431:24497). Passo 1 de 2; o passo 2 é a confirmação do
+ * e-mail, que já existia. Mesmo fluxo do mobile (register.tsx): a conta nasce sem verificação e o código vai por e-mail.
+ * 18+ continua obrigatório (PLAYSTORE P10) e o aceite dos termos segue por frase (decisão do usuário, 16 nov).
+ */
 export default function RegisterPage() {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -15,42 +18,45 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   // Compatibilidade com a API: identificador interno, não é um nome público.
   const [username] = useState(() => "lg_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 12));
-  // Exigido antes de a conta existir (Play: público 18+, PLAYSTORE.md P10); vai como age_confirmed.
   const [adult, setAdult] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<EntryError | null>(null);
+  const bad = (f: Field) => !!error?.fields.includes(f);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (loading) return;
-    if (!email.trim() || !password) { setError("Informe seu e-mail e sua senha."); return; }
-    if (password.length < 8) { setError("Use uma senha com pelo menos 8 caracteres."); return; }
-    if (!adult) { setError("Confirme que você tem 18 anos ou mais para criar a conta."); return; }
-    setError(""); setLoading(true);
+    if (!email.trim() || !password) {
+      setError(localError("Falta preencher", [...(!email.trim() ? ["email" as const] : []), ...(!password ? ["password" as const] : [])], "Informe seu e-mail e uma senha."));
+      return;
+    }
+    if (password.length < 8) { setError(localError("Senha curta", ["password"], "Use uma senha com pelo menos 8 caracteres.")); return; }
+    if (!adult) { setError(localError("Confirme a idade", ["adult"], "A conta é só para quem tem 18 anos ou mais.")); return; }
+    setError(null); setLoading(true);
     try {
       const data = await api<{ email: string }>("/auth/register", { method: "POST", body: { email: email.trim().toLowerCase(), password, full_name: name.trim() || null, username, age_confirmed: true } });
       router.replace(`/confirmar-email?email=${encodeURIComponent(data.email)}`);
     } catch (err) {
-      setError(getErrorMessage(err, "Erro ao criar conta. Tente novamente."));
+      setError(registerError(err));
       setLoading(false);
     }
   }
 
   return (
-    <EntryPage fallback="/boas-vindas">
+    <EntryShell>
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
-        <PageTitle>Crie sua conta</PageTitle>
-        <PageSubtitle>Você pode continuar sem ambiente ou planta.</PageSubtitle>
-        <TextField label="Como quer ser chamado?" placeholder="Seu apelido" hint="Opcional. Usado dentro da sua conta." value={name} onChange={e => setName(e.target.value)} autoCapitalize="words" autoComplete="nickname" />
-        <TextField label="E-mail" placeholder="voce@exemplo.com" hint="Para entrar e recuperar o acesso." type="email" value={email} onChange={e => setEmail(e.target.value)} autoCapitalize="none" autoCorrect="off" autoComplete="email" inputMode="email" />
-        <PasswordField label="Senha" placeholder="••••••••••••" hint="Use uma senha exclusiva, com pelo menos 8 caracteres." value={password} onChange={e => setPassword(e.target.value)} autoCapitalize="none" autoComplete="new-password" />
-        <CheckRow title="Tenho 18 anos ou mais" body="E vou usar o app de acordo com a lei do meu país." checked={adult} onChange={v => { setAdult(v); if (v) setError(""); }} />
-        <PageSubtitle>Ao criar a conta, você aceita os Termos de uso. Leia como seus dados são tratados.</PageSubtitle>
-        <ButtonLink secondary label="Termos e privacidade" href="/termos" />
-        <FormError message={error} />
-        <Button type="submit" label={loading ? "Criando conta…" : "Criar conta"} loading={loading} />
-        <ButtonLink secondary replace label="Já tenho conta" href="/entrar" />
+        <StepMeter step={1} label="Seus dados" />
+        <EntryTitle title="Crie sua conta" subtitle="Você pode continuar sem ambiente ou planta." />
+        <ErrorBox error={error} />
+        <EntryField label="Como quer ser chamado?" icon="user" placeholder="Seu apelido" value={name} onChange={e => setName(e.target.value)} autoCapitalize="words" autoComplete="nickname" />
+        <EntryField label="E-mail" icon="mail" placeholder="voce@exemplo.com" hint="Enviamos um código para este e-mail" type="email" value={email} invalid={bad("email")} onChange={e => setEmail(e.target.value)} autoCapitalize="none" autoCorrect="off" autoComplete="email" inputMode="email" />
+        <EntryField label="Senha" icon="lock" placeholder="••••••••••••" hint="Mínimo de 8 caracteres" type="password" value={password} invalid={bad("password")} onChange={e => setPassword(e.target.value)} autoCapitalize="none" autoComplete="new-password" />
+        <AdultCheck checked={adult} invalid={bad("adult")} onChange={v => { setAdult(v); if (v && bad("adult")) setError(null); }} />
+        <p className="text-sm leading-5 text-text">Ao criar a conta, você aceita os Termos de uso. Leia como seus dados são tratados.</p>
+        <div className="flex flex-wrap gap-4"><SmallLink href="/termos">Termos de uso</SmallLink><SmallLink href="/privacidade">Privacidade</SmallLink></div>
+        <EntryButton type="submit" label={loading ? "Criando conta…" : "Criar conta"} busy={loading} />
+        <EntryButton kind="clear" replace label="Já tenho conta" href="/entrar" />
       </form>
-    </EntryPage>
+    </EntryShell>
   );
 }
