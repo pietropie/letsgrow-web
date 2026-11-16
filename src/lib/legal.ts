@@ -3,10 +3,10 @@
  */
 
 /**
- * E-mail de privacidade e do encarregado (DPO). Enquanto for null, as páginas remetem à Política de privacidade.
- * O usuário vai informar o endereço; preencha aqui e em content/privacidade.md (§1 e §8).
+ * E-mail de privacidade e do encarregado (DPO), informado pelo usuário em 16/11/2026. O mesmo endereço está em
+ * content/privacidade.md (§1 e §8); se mudar, mude nos dois.
  */
-export const PRIVACY_EMAIL: string | null = null;
+export const PRIVACY_EMAIL: string | null = "privacidade@letsgrowapp.com.br";
 
 /**
  * Prazo para desistir da exclusão, em dias. Vem de app_settings.account_deletion_grace_days no backend

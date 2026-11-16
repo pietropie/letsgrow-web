@@ -1,10 +1,10 @@
-**Última atualização:** ⟦data⟧
+**Última atualização:** 16/11/2026
 
 Esta Política explica como o **LetsGrow** (app Android e serviços em letsgrowapp.com.br) trata os seus dados pessoais, conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD").
 
 ## 1. Quem é o controlador
-⟦Nome completo ou razão social⟧, ⟦CPF/CNPJ⟧, ⟦cidade/UF⟧.
-Contato para privacidade e para o encarregado de dados (DPO): ⟦e-mail de suporte, ex.: privacidade@letsgrowapp.com.br⟧.
+PB DESIGN SERVICOS DE DESENVOLVIMENTO E ADMINISTRATIVOS LTDA, CNPJ 52.657.058/0001-06, São Paulo/SP.
+Contato para privacidade e para o encarregado de dados (DPO): privacidade@letsgrowapp.com.br.
 
 ## 2. Para quem é o app
 O LetsGrow é um diário e assistente de cultivo de plantas, **somente para maiores de 18 anos**. O app não vende, não intermedeia e não indica a compra de plantas, sementes, flores ou derivados de cannabis. Cada pessoa é responsável por cultivar de acordo com a lei do seu país.
@@ -30,7 +30,7 @@ Não usamos dados para publicidade, não usamos ID de publicidade, não vendemos
 ## 4. Inteligência artificial (Bobby)
 - As respostas do Bobby são geradas por IA (atualmente o Google Gemini) e podem conter erros. Elas não substituem orientação médica, agronômica ou jurídica.
 - Para responder, enviamos ao provedor de IA a sua pergunta, as fotos que você anexar e trechos relevantes dos seus registros. O provedor processa esses dados em nosso nome e não pode usá-los para outros fins, conforme os termos do serviço contratado.
-- ⟦Se for mantido:⟧ Trechos de conversas podem ser revisados pela equipe e, **sem dados que identifiquem você**, incorporados à base de conhecimento usada pelo Bobby para todos os usuários. Você pode pedir que suas conversas não sejam usadas para isso pelo e-mail de contato.
+- Trechos de conversas podem ser revisados pela equipe e, **sem dados que identifiquem você**, incorporados à base de conhecimento usada pelo Bobby para todos os usuários. Você pode pedir que suas conversas não sejam usadas para isso pelo e-mail privacidade@letsgrowapp.com.br.
 - Você pode avaliar respostas e denunciar conteúdo inadequado pelo próprio app. Esses avisos são revisados pela equipe.
 
 **Receitas e laudos (dados de saúde).** Se você enviar ao Bobby uma receita, laudo ou o perfil de canabinoides indicado pelo seu médico, usamos essas informações só para sugerir genéticas do nosso catálogo que se aproximem do perfil para cultivo. A imagem ou o PDF é enviado ao provedor de IA para leitura. Anexos do chat ficam 30 dias no app; as cópias de segurança são apagadas em até 35 dias depois. Fotos que você guardar no calendário passam a fazer parte do registro da planta. O resumo do perfil (por exemplo, "predominância de CBD, THC < 1%") fica na conversa até você apagá-la ou excluir a conta. São dados pessoais sensíveis (LGPD, art. 11), tratados com o seu consentimento, dado no momento do envio. Recomendamos cobrir nome, documento e dados do médico antes de enviar. O LetsGrow não faz diagnóstico, não indica tratamento nem dose.
@@ -64,8 +64,8 @@ Você pode, a qualquer momento:
 - **acessar e corrigir** seus dados no app;
 - **pedir uma cópia** dos seus dados em Perfil › Privacidade e dados › Solicitar cópia dos meus dados. Você recebe um arquivo JSON com registros, fotos e conversas;
 - **apagar** conversas e a memória do Bobby;
-- **excluir a sua conta** em Perfil › Privacidade e dados › Excluir minha conta. Há um prazo de ⟦N⟧ dias para desistir; depois disso, a conta e todo o conteúdo associado (ambientes, plantas, registros, fotos, conversas e memória do Bobby) são apagados;
-- excluir sem o app em https://app.letsgrowapp.com.br/excluir-conta ou pelo e-mail ⟦contato⟧, enviado do e-mail da conta;
+- **excluir a sua conta** em Perfil › Privacidade e dados › Excluir minha conta. Há um prazo de 7 dias para desistir; depois disso, a conta e todo o conteúdo associado (ambientes, plantas, registros, fotos, conversas e memória do Bobby) são apagados;
+- excluir sem o app em https://app.letsgrowapp.com.br/excluir-conta ou pelo e-mail privacidade@letsgrowapp.com.br, enviado do e-mail da conta;
 - pedir informações sobre o tratamento, se opor a ele ou reclamar à ANPD.
 
 ## 9. Segurança
