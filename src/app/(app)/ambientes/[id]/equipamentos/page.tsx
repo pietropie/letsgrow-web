@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { ShopEntry } from "@/components/shop";
 import { ActionRow, BackLink, Button, ButtonLink, Notice, PageSubtitle, PageTitle, Spinner } from "@/components/ui";
 import { useGrow } from "@/lib/hooks";
 import { routes } from "@/lib/routes";
@@ -23,6 +24,7 @@ export default function EquipmentPage() {
           : <Notice title="Nenhum equipamento cadastrado" body="Equipamentos são opcionais. Toque num tipo para descrever o que você usa." meta="O cadastro não confirma se o equipamento está ligado." />}
         {EQUIPMENT_KINDS.map(kind => <ActionRow key={kind} title={KIND_TITLE[kind]} body={equipmentSummary(kind, g)} href={routes.growEquipmentForm(id, kind)} />)}
         {sensors && <ActionRow title="Sensores do ambiente" body="Pareie ou revise sensores, se você usar algum." href={sensors} />}
+        <ShopEntry point="page" body="Indicações pelo que falta no ambiente e pela fase das plantas." />
       </>}
       <ButtonLink secondary label="Voltar ao ambiente" href={routes.growPanel(id)!} />
     </div>

@@ -9,6 +9,7 @@ import { type PanelTone } from "@/components/grows/instruments";
 import { SegmentedDisplay } from "@/components/home/blocks";
 import { BobbyIcon } from "@/components/bobby-icon";
 import { CornerLink, Lamp, Marker, PanelButton, PanelCard, PanelTitle, type LampState } from "@/components/panel";
+import { PlantShopBlock } from "@/components/shop";
 import { NewEventPanel } from "@/components/plants/new-event-panel";
 import { ActionRow, BackLink, Button, ButtonLink, Notice, PageSubtitle, PageTitle, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -231,7 +232,7 @@ export default function PlantPage() {
       <BackLink fallback={routes.plants()} />
       <div className="flex flex-col gap-[14px] lg:grid lg:grid-cols-3 lg:items-start lg:gap-5">
         <div className="flex flex-col gap-[14px] lg:gap-5">{photoCard}{growCard}</div>
-        <div className="flex flex-col gap-[14px] lg:gap-5">{nextCard}{phaseCard}{linksCard}</div>
+        <div className="flex flex-col gap-[14px] lg:gap-5">{nextCard}{phaseCard}<PlantShopBlock plantId={plant.id} />{linksCard}</div>
         <div className="flex flex-col gap-[14px] lg:gap-5">{recordsCard}{bobbyCard}</div>
       </div>
       {panel}

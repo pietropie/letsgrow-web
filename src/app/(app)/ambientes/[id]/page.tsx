@@ -8,6 +8,7 @@ import { useState, type ReactNode } from "react";
 import { SegmentedDisplay } from "@/components/home/blocks";
 import { GrowPicker } from "@/components/home/place-flow";
 import { ExhaustDimmer, PanelTag, PhotoperiodDial, PpfdGauge, type PanelTone } from "@/components/grows/instruments";
+import { GrowShopBlock } from "@/components/shop";
 import { CornerLink, Lamp, Marker, PanelButton, PanelCard, PanelLabel, PanelTitle, type LampState } from "@/components/panel";
 import { BackLink, Button, Spinner } from "@/components/ui";
 import { backendNextAction, nextAction, nextMarker, readingMarker, type SummaryV3 } from "@/lib/home-v3";
@@ -267,6 +268,8 @@ export default function GrowPanelPage() {
         <div className="flex flex-col gap-[14px] lg:gap-5">
           {exhaustCard}{fanCard}
           {!archived && <div className="flex"><PanelButton kind="clear" label="Adicionar equipamento" href={routes.growEquipment(grow.id)} /></div>}
+          {/* C2 (UX 26b): indicação de equipamento que falta, só com o bloco ligado no Admin e com motivo nos dados. */}
+          {!archived && <GrowShopBlock growId={grow.id} />}
         </div>
       </div>
 

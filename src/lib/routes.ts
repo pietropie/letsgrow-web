@@ -51,6 +51,9 @@ export const routes = {
   deleteAccount: () => "/conta/privacidade/excluir",
   support: () => "/conta/suporte",
   help: () => "/como-funciona",
+  /** Equipamentos e insumos (UX 26b–26d): a página e a lista de uma categoria. Só aparece com os interruptores de /shop/settings. */
+  shop: () => "/equipamentos",
+  shopCategory: (key: string) => `/equipamentos?categoria=${encodeURIComponent(key)}`,
   install: () => "/instalar",
 };
 

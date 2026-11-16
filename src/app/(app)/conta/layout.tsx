@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { PanelButton } from "@/components/panel";
+import { ShopEntry } from "@/components/shop";
 import { ActionRow, ConfirmDialog, PageTitle } from "@/components/ui";
 import { AccountPlanCard, AccountProfile, RowGroup, useAccountPlan } from "@/components/plan-card";
 import { useNotificationPreferences } from "@/lib/account";
@@ -71,6 +72,8 @@ function AccountMenu({ wide }: { wide: boolean }) {
             { title: "Entender os créditos", body: "O que é incluído e o que pode ser cobrado.", href: routes.creditHelp(), active: at(routes.creditHelp()) },
             { title: "Como o LetsGrow funciona", body: "Conheça o acompanhamento.", href: routes.help() },
           ]} />
+          {/* Equipamentos e insumos (UX 26b): a entrada pela Conta só com o ponto ligado no Admin. */}
+          {!exploring && <ShopEntry point="account_entry" body="Equipamento e insumo pelo que falta no seu cultivo." />}
           {/* Só na web: abrir como app, a partir da tela inicial do iPhone. */}
           <RowGroup title="Neste aparelho" rows={[{ title: "Usar como app no iPhone", body: "Adicione o LetsGrow à Tela de Início.", href: routes.install() }]} />
           <div className="flex"><PanelButton kind="clear" label="Sair da conta" onClick={() => setConfirm(true)} /></div>
