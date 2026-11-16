@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { API_URL, isTrustedWrite, setSession } from "./session";
+import { API_URL, apiHeaders, isTrustedWrite, setSession } from "./session";
 
 /**
  * Rotas da API que devolvem tokens (entrar, confirmar e-mail): o Next guarda os tokens em cookie e
@@ -12,7 +12,7 @@ export function tokenRoute(apiPath: string) {
     try {
       upstream = await fetch(`${API_URL}${apiPath}`, {
         method: "POST", cache: "no-store",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...apiHeaders(req.headers) },
         body: await req.text(),
       });
     } catch {

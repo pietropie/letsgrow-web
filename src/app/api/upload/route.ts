@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ACCESS_COOKIE, API_URL, REFRESH_COOKIE, clearSession, isTrustedWrite, refreshTokens, setSession, type Tokens } from "@/lib/server/session";
+import { ACCESS_COOKIE, API_URL, REFRESH_COOKIE, apiHeaders, clearSession, isTrustedWrite, refreshTokens, setSession, type Tokens } from "@/lib/server/session";
 
 /**
  * Foto de registro (WEBAPP.md §2.4): o navegador manda o arquivo já reduzido; aqui pedimos a URL pré-assinada à API
@@ -27,13 +27,13 @@ export async function POST(req: NextRequest) {
   let renewed: Tokens | null = null;
   const presign = (token?: string) => fetch(`${API_URL}/uploads/presign`, {
     method: "POST", cache: "no-store",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { "Content-Type": "application/json", ...apiHeaders(req.headers), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ bucket: "events", content_type: file!.type }),
   });
   try {
-    if (!access) { renewed = await refreshTokens(refresh); access = renewed?.access_token; }
+    if (!access) { renewed = await refreshTokens(refresh, req.headers); access = renewed?.access_token; }
     let res = await presign(access);
-    if (res.status === 401 && !renewed) { renewed = await refreshTokens(refresh); if (renewed) res = await presign(renewed.access_token); }
+    if (res.status === 401 && !renewed) { renewed = await refreshTokens(refresh, req.headers); if (renewed) res = await presign(renewed.access_token); }
     if (res.status === 401) { const out = NextResponse.json({ detail: "Sessão expirada" }, { status: 401 }); clearSession(out); return out; }
     if (!res.ok) return NextResponse.json(await res.json().catch(() => ({ detail: "Não foi possível preparar o envio." })), { status: res.status });
     const { upload_url, object_key } = await res.json();

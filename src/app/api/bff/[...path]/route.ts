@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ACCESS_COOKIE, API_URL, REFRESH_COOKIE, clearSession, isTrustedWrite, refreshTokens, setSession, type Tokens } from "@/lib/server/session";
+import { ACCESS_COOKIE, API_URL, REFRESH_COOKIE, apiHeaders, clearSession, isTrustedWrite, refreshTokens, setSession, type Tokens } from "@/lib/server/session";
 
 /**
  * BFF: repassa /api/bff/<caminho> para <API_URL>/<caminho> com o JWT do cookie.
@@ -26,6 +26,7 @@ async function handle(req: NextRequest, { params }: { params: Promise<{ path: st
     const headers = new Headers();
     for (const name of PASS_REQUEST) { const v = req.headers.get(name); if (v) headers.set(name, v); }
     if (token) headers.set("authorization", `Bearer ${token}`);
+    for (const [name, value] of Object.entries(apiHeaders(req.headers))) headers.set(name, value);
     return fetch(url, { method: req.method, headers, body, signal: req.signal, cache: "no-store", redirect: "manual" });
   };
 
@@ -35,7 +36,7 @@ async function handle(req: NextRequest, { params }: { params: Promise<{ path: st
   let refreshFailed = false;
   // O cookie do access some antes do token vencer: renova antes, sem gastar uma ida que daria 401.
   if (!access && refresh) {
-    renewed = await refreshTokens(refresh);
+    renewed = await refreshTokens(refresh, req.headers);
     refreshFailed = !renewed;
     access = renewed?.access_token;
   }
@@ -44,7 +45,7 @@ async function handle(req: NextRequest, { params }: { params: Promise<{ path: st
   try {
     upstream = await forward(access);
     if (upstream.status === 401 && refresh && !renewed && !refreshFailed) {
-      renewed = await refreshTokens(refresh);
+      renewed = await refreshTokens(refresh, req.headers);
       refreshFailed = !renewed;
       if (renewed) upstream = await forward(renewed.access_token);
     }

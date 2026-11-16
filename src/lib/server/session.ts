@@ -1,4 +1,5 @@
 import type { NextRequest, NextResponse } from "next/server";
+import { bffHeaders } from "./bff-headers";
 
 /**
  * Sessão do usuário em cookies httpOnly (decisão em analise-2026-10-16/WEBAPP.md §2.2).
@@ -10,6 +11,14 @@ export const REFRESH_COOKIE = "lg_rt";
 export const API_URL = (process.env.API_URL ?? "https://api.letsgrowapp.com.br/api/v1").replace(/\/+$/, "");
 
 export type Tokens = { access_token: string; refresh_token: string };
+
+/**
+ * Cabeçalhos de toda chamada do servidor à API: o IP do navegador e a chave do BFF (proteção da API, fase 1).
+ * Sem BFF_SHARED_SECRET, nada vai. O segredo só existe no servidor (sem NEXT_PUBLIC) e nunca entra em log.
+ */
+export function apiHeaders(incoming: { get(name: string): string | null } | null): Record<string, string> {
+  return bffHeaders(incoming, process.env.BFF_SHARED_SECRET);
+}
 
 /** Segundos até o `exp` do JWT (sem conferir a assinatura: isso é do backend). */
 function secondsLeft(token: string, fallback: number): number {
@@ -35,11 +44,11 @@ export function clearSession(res: NextResponse) {
   res.cookies.set(REFRESH_COOKIE, "", { ...base, maxAge: 0 });
 }
 
-export async function refreshTokens(refreshToken: string): Promise<Tokens | null> {
+export async function refreshTokens(refreshToken: string, incoming: { get(name: string): string | null } | null): Promise<Tokens | null> {
   try {
     const res = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST", cache: "no-store",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...apiHeaders(incoming) },
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
     if (!res.ok) return null;
