@@ -11,6 +11,8 @@ import { BobbyIcon } from "@/components/bobby-icon";
 import { CornerLink, Lamp, Marker, PanelButton, PanelCard, PanelTitle, type LampState } from "@/components/panel";
 import { PlantShopBlock } from "@/components/shop";
 import { NewEventPanel } from "@/components/plants/new-event-panel";
+import { RestorePlant, restoredNotice } from "@/components/plants/restore";
+import { isHarvestedPlant } from "@/lib/plant-restore";
 import { ActionRow, BackLink, Button, ButtonLink, Notice, PageSubtitle, PageTitle, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { backendNextAction, nextMarker, readingMarker, type SummaryV3 } from "@/lib/home-v3";
@@ -47,6 +49,7 @@ function Metric({ title, icon, value, note, tone, valueTone = "var(--color-bg)" 
 export default function PlantPage() {
   const { id: plantId } = useParams<{ id: string }>();
   const [recording, setRecording] = useState(false);
+  const [restored, setRestored] = useState<string | null>(null);
   const plantQuery = usePlant(plantId);
   const eventsQuery = useEvents(plantId);
   const summaries = usePlantSummaries();
@@ -69,12 +72,21 @@ export default function PlantPage() {
   const panel = recording && <NewEventPanel open onClose={() => setRecording(false)} plantId={plant.id} growLabel={grow?.name} growId={plant.grow_id} />;
   const diaryHref = routes.plantDiary(plant.id)!;
   const add = plant.is_active;
+  // Planta arquivada (não colhida): "Restaurar" no topo, com o mesmo fluxo da lista de arquivadas.
+  const restoreBar = <>
+    {restored && <Notice title={restoredNotice(restored)} body="Ela já conta no limite de plantas do plano." />}
+    {!plant.is_active && !isHarvestedPlant(plant) && <div className="flex max-w-[600px] flex-col gap-2">
+      <p className="text-sm leading-5 text-text-secondary">Esta planta está arquivada. Os registros continuam disponíveis.</p>
+      <RestorePlant plant={plant} onRestored={setRestored} />
+    </div>}
+  </>;
 
   if (!hasPlantDetails(plant) && !photos.count) {
     const last = sortedEvents(events)[0];
     return (
       <div className="flex max-w-[600px] flex-col gap-4">
         <BackLink fallback={routes.plants()} />
+        {restoreBar}
         <PageTitle>{name}</PageTitle>
         <PageSubtitle>{[grow?.name, "ainda sem foto"].filter(Boolean).join(" · ")}</PageSubtitle>
         <Notice title={events.length === 0 ? "Nenhum registro ainda" : events.length === 1 ? (["note", "observation"].includes(last?.event_type ?? "") ? "Uma nota registrada" : "Um registro feito") : `${events.length} registros feitos`}
@@ -230,6 +242,7 @@ export default function PlantPage() {
   return (
     <>
       <BackLink fallback={routes.plants()} />
+      {restoreBar}
       <div className="flex flex-col gap-[14px] lg:grid lg:grid-cols-3 lg:items-start lg:gap-5">
         <div className="flex flex-col gap-[14px] lg:gap-5">{photoCard}{growCard}</div>
         <div className="flex flex-col gap-[14px] lg:gap-5">{nextCard}{phaseCard}<PlantShopBlock plantId={plant.id} />{linksCard}</div>

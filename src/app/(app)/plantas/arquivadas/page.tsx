@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { RestorePlant, restoredNotice } from "@/components/plants/restore";
 import { Lamp, Marker, PanelButton, PanelCard } from "@/components/panel";
 import { BackLink, Button, Notice, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -24,12 +25,15 @@ function cycleLine(s: CycleSummary | undefined): string | null {
 
 /**
  * Plantas arquivadas e colhidas (UX itens 22 e 23b; estado E10 2424:23690): cartões esmaecidos com "COLHIDA" ou
- * "ARQUIVADA" e a data, "NÃO CONTA NO LIMITE" e "VER HISTÓRICO". Sem "Restaurar": o web e a API ainda não têm essa ação.
+ * "ARQUIVADA" e a data, "NÃO CONTA NO LIMITE" e "VER HISTÓRICO". A arquivada (não a colhida) tem "Restaurar" ao lado
+ * (backend cb83fc2, PATCH /plants/{id} { is_active: true }), com confirmação e o motivo quando bloqueado (limite do
+ * plano ou ambiente arquivado), como no mobile (app/(app)/plants/archived.tsx).
  */
 export default function ArchivedPlantsPage() {
   const plants = usePlants({ is_active: false });
   const summaries = useQuery({ queryKey: ["plants", "summaries", { is_active: false }], queryFn: () => api<Record<string, CycleSummary>>("/plants/summaries?is_active=false") });
   const [filter, setFilter] = useState<Filter>("all");
+  const [restored, setRestored] = useState<string | null>(null);
   const list = (plants.data ?? []).filter(p => filter === "all" || (filter === "harvested") === isHarvested(p));
   const count = (f: Filter) => (plants.data ?? []).filter(p => f === "all" || (f === "harvested") === isHarvested(p)).length;
   return (
@@ -37,6 +41,7 @@ export default function ArchivedPlantsPage() {
       <BackLink fallback={routes.plants()} />
       <h1 className="font-label text-[28px] leading-9 text-text-primary">Plantas arquivadas e colhidas</h1>
       <p className="text-sm leading-5 text-text-secondary">Os registros continuam disponíveis e não contam no limite do plano.</p>
+      {restored && <div className="max-w-[600px]"><Notice title={restoredNotice(restored)} body="Ela já aparece nas plantas ativas e conta no limite do plano." /></div>}
       {plants.isPending ? <Spinner /> : plants.isError ? <div className="max-w-[600px]"><Button secondary label="Não foi possível carregar. Tentar novamente" onClick={() => void plants.refetch()} /></div>
         : !plants.data.length ? <div className="max-w-[600px]"><Notice title="Nenhuma planta arquivada ou colhida" body="As plantas arquivadas ficam fora do acompanhamento atual e mantêm seu histórico." /></div> : <>
           <div role="radiogroup" aria-label="Filtrar" className="flex flex-wrap gap-1.5">
@@ -56,7 +61,7 @@ export default function ArchivedPlantsPage() {
                   <Marker>{isHarvested(p) ? `Colhida · ${shortDayMonth(p.harvest_date) ?? ""}` : `Arquivada · ${shortDayMonth(p.updated_at) ?? ""}`}</Marker>
                 </div>
                 <div className="flex flex-wrap gap-1.5">{cycleLine(summaries.data?.[p.id]) && <Marker>{cycleLine(summaries.data?.[p.id])}</Marker>}<Marker>Não conta no limite</Marker></div>
-                <div className="flex"><PanelButton kind="clear" label="Ver histórico" href={routes.plant(p.id)} /></div>
+                <RestorePlant plant={p} onRestored={setRestored}><PanelButton kind="clear" label="Ver histórico" href={routes.plant(p.id)} /></RestorePlant>
               </PanelCard>
             ))}
           </div>
