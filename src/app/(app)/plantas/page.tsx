@@ -81,7 +81,7 @@ function Plants() {
     }).items;
   });
   const hrefOf = (item: AttentionItem) => item.target.kind === "diary" ? routes.plantDiary(item.target.id) : item.target.kind === "grow" ? routes.growPanel(item.target.id) : routes.bobbyObservation(item.target.id);
-  const cards = activePlants.map(plant => ({ plant, props: plantPanelProps({ plant, summary: summaryOf(plant.id), growName: growName(plant.grow_id), items, hrefOf, illustrate: false, detailedTags: true }) }));
+  const cards = activePlants.map(plant => ({ plant, props: plantPanelProps({ plant, summary: summaryOf(plant.id), growName: growName(plant.grow_id), items, hrefOf, detailedTags: true }) }));
 
   const attentionCount = cards.filter(c => c.props.next).length;
   const chips: { key: string; label: string }[] = [

@@ -13,7 +13,7 @@ import type { GrowEnvSnapshot, PlantResponse, PlantSummary } from "@/shared/type
 
 /**
  * Props dos cartões do painel (item 23b) a partir dos dados reais, para o Início, Ambientes e Plantas usarem a mesma
- * regra. Nada é estimado: sem leitura, o mostrador fica em traços; sem foto, "SEM FOTO" ou a ilustração.
+ * regra. Nada é estimado: sem leitura, o mostrador fica em traços; sem foto, a ilustração, marcada como "ILUSTRATIVA".
  */
 
 const GROW_TYPE: Record<string, string> = { indoor: "Indoor", outdoor: "Externo", greenhouse: "Estufa" };
@@ -21,29 +21,28 @@ const GENETICS: Record<string, string> = { indica: "índica", sativa: "sativa", 
 const STRAIN_TYPE: Record<string, string> = { photo: "fotoperiódica", auto: "automática" };
 
 export type PlantPanelProps = {
-  name: string; href: string | null; photo: { src: string; real: boolean } | null;
+  name: string; href: string | null; photo: { src: string; real: boolean };
   tags: string[]; phase: { icon: string; label: string } | null; phaseLine: string;
   next: { label: string; href: string | null } | null; last: string | null; noRecords: boolean;
   askHref: string; photoHref: string | null; recordHref: string | null;
 };
 
 /**
- * Um cartão de planta: foto (capa do backend, a mais recente do diário ou, `illustrate`, a ilustração), a próxima
+ * Um cartão de planta: foto (capa do backend, a mais recente do diário ou a ilustração), a próxima
  * ação do backend filtrada pelo critério de "Precisa de atenção" (ou o item de atenção da planta), o último registro.
  */
 export function plantPanelProps(input: {
   plant: PlantResponse; summary: (PlantSummary & SummaryV3) | undefined; growName: string | null;
   items: AttentionItem[]; hrefOf: (i: AttentionItem) => string | null; diaryPhoto?: string | null;
-  /** Início: sem foto, a ilustração da genética (como antes). Plantas: "SEM FOTO" e o botão "FOTO" (item 22). */
-  illustrate: boolean; detailedTags?: boolean;
+  /** Sem foto, Início e Plantas mostram a ilustração (antes Plantas mostrava "SEM FOTO", item 22; pedido do usuário, 17 nov). */
+  detailedTags?: boolean;
 }): PlantPanelProps {
   const { plant, summary: s } = input;
   const icon = phaseIcon(plant.current_phase), day = s?.phase_day ?? phaseDay(plant);
   const latest = s?.latest_photo_url ?? input.diaryPhoto ?? null;
   const cover = s?.cover_image_url ?? latest;
   const photo = cover ? { src: cover, real: !!latest && cover === latest }
-    : input.illustrate ? { src: s?.strain_image_url || `/figma/plant-${plantIllustration(plant.id)}.png`, real: false }
-      : s?.strain_image_url ? { src: s.strain_image_url, real: false } : null;
+    : { src: s?.strain_image_url || `/figma/plant-${plantIllustration(plant.id)}.png`, real: false };
   const fromBackend = backendNextAction(s);
   const local = fromBackend === undefined ? nextAction(plant.id, input.items, s?.last_watering_at) : null;
   const next = fromBackend ? { label: nextMarker(fromBackend, s?.last_watering_at), href: fromBackend.watering ? routes.plantDiary(plant.id) : routes.bobbyObservation(plant.id) }

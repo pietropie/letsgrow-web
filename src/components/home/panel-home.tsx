@@ -136,21 +136,25 @@ export function EnvPanel(p: {
 }
 
 /**
- * Cartão da planta no painel (itens 22 e 23b): foto sem borda (ou "SEM FOTO"), lâmpada, marcadores, fase e dia, a
+ * Cartão da planta no painel (itens 22 e 23b): foto sem borda (ou a ilustração, com o marcador "ILUSTRATIVA"), lâmpada, marcadores, fase e dia, a
  * próxima ação e os botões. Compacto por padrão; `large` com uma planta só (E9). `header` é a linha do Início (20a).
  */
 export function PlantPanel(p: {
   header?: { title: string; calendarHref: string | null };
-  name: string; href: string | null; photo: { src: string; real: boolean } | null;
+  name: string; href: string | null; photo: { src: string; real: boolean };
   tags: string[]; phase: { icon: string; label: string } | null; phaseLine: string;
   next: { label: string; href: string | null } | null; last: string | null;
   /** Sem registro nenhum (P1p "Muda nova"): "FAÇA O PRIMEIRO REGISTRO" e "SEM REGISTROS". */
   noRecords?: boolean;
   askHref: string; photoHref?: string | null; recordHref: string | null; large?: boolean;
 }) {
-  const photo = p.photo
-    ? <img src={p.photo.src} alt="" className={`${p.large ? "h-[210px] w-full" : "size-[104px]"} rounded-lg ${p.photo.real ? "object-cover" : "object-contain"}`} />
-    : <span className={`font-label flex items-center justify-center rounded-lg bg-bg text-xs text-display ${p.large ? "h-[160px] w-full" : "size-[104px]"}`}>SEM FOTO</span>;
+  // Sem foto real (capa ou diário), a ilustração da genética leva "ILUSTRATIVA" por cima, para não passar por foto da planta.
+  const photo = (
+    <span className={`relative block ${p.large ? "h-[210px] w-full" : "size-[104px]"}`}>
+      <img src={p.photo.src} alt={p.photo.real ? "" : "Imagem ilustrativa"} className={`size-full rounded-lg ${p.photo.real ? "object-cover" : "object-contain"}`} />
+      {!p.photo.real && <span className="font-label absolute bottom-1 left-1 bg-bg px-1 py-px text-[10px] leading-3 text-display uppercase">Ilustrativa</span>}
+    </span>
+  );
   return (
     <PanelCard label={`Planta ${p.name}`}>
       {p.header && (

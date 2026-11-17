@@ -196,7 +196,7 @@ export default function HomePage() {
         {growPlants.length ? growPlants.map((plant, i) => (
           <div key={plant.id} className="order-3 grid min-w-0 lg:order-none">
             <PlantPanel header={{ title: growPlants.length === 1 ? "Sua planta" : `Suas plantas · ${growPlants.length}`, calendarHref: routes.plantsCalendar() }}
-              {...plantPanelProps({ plant, summary: summaryOf(plant.id), growName: grow.name, items: attention.items, hrefOf: attentionHref, diaryPhoto: photos[i]?.data?.[0]?.photo_urls?.[0], illustrate: true })} />
+              {...plantPanelProps({ plant, summary: summaryOf(plant.id), growName: grow.name, items: attention.items, hrefOf: attentionHref, diaryPhoto: photos[i]?.data?.[0]?.photo_urls?.[0] })} />
           </div>
         )) : (
           <div className="order-3 grid lg:order-none">
