@@ -19,14 +19,14 @@ const check = process.argv.includes('--check')
 /** Só arquivos sem React Native nem Expo. */
 const LIB = [
   'accountFeatures', 'bobbyChat', 'bobbyOverview', 'carousel', 'chatStream', 'dates', 'diaryCalendar', 'diaryEntries',
-  'equipmentForms', 'errors', 'exhaustDimmer', 'growEquipment', 'growHistory', 'homeClimate', 'lightDial',
+  'equipmentForms', 'errors', 'exhaustDimmer', 'growEquipment', 'growHistory', 'homeClimate', 'hubProvisioning', 'lightDial',
   'lightSchedule', 'markdown', 'measurements', 'numericInput', 'phaseDay', 'plantFacts', 'plantIdentity',
 ]
 const TYPES = ['api', 'bob', 'features']
 /** Testes cujos requires estão todos entre os arquivos acima. */
 const TESTS = [
   'accountFeatures', 'bobbyChat', 'bobbyOverview', 'carousel', 'chatStream', 'diaryCalendar', 'diaryTimeline',
-  'equipmentForms', 'errors', 'exhaustDimmer', 'growHistory', 'homeClimate', 'lightDial', 'lightSchedule',
+  'equipmentForms', 'errors', 'exhaustDimmer', 'growHistory', 'homeClimate', 'hubProvisioning', 'lightDial', 'lightSchedule',
   'measurements', 'numericInput', 'plantIdentity', 'plantsCalendar', 'screenFacts',
 ]
 

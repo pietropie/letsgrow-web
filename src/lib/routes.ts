@@ -14,6 +14,8 @@ export const routes = {
   growHistory: (growId: string) => `/ambientes/${growId}/historico`,
   growReading: (growId: string, readingId?: string): string | null => `/ambientes/${growId}/registro${readingId ? `?leitura=${readingId}` : ""}`,
   growSensors: (growId: string): string | null => `/ambientes/${growId}/sensores`,
+  /** Adicionar Hub por Bluetooth (Figma 27, H1–H7). */
+  growAddHub: (growId: string): string | null => `/ambientes/${growId}/sensores/hub`,
   plants: () => "/plantas",
   plantsCalendar: (): string | null => "/plantas?modo=calendario",
   archivedPlants: () => "/plantas/arquivadas",

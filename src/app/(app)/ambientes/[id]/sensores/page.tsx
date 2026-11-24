@@ -1,13 +1,15 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Marker, PanelButton, PanelLabel } from "@/components/panel";
 import { SidePanel } from "@/components/side-panel";
 import { BackLink, Button, ButtonLink, ChoiceField, ConfirmDialog, FormError, Notice, PageSubtitle, PageTitle, Spinner, TextField } from "@/components/ui";
 import { useGrow, usePlants } from "@/lib/hooks";
 import { routes } from "@/lib/routes";
-import { useDeleteDevice, useGrowDevices, useLatestReading, useRegisterDevice, useSensorSummary, useUpdateDevice } from "@/lib/sensors";
+import { useDeleteDevice, useGrowDevices, useLatestReading, useOpenHubPairing, useRegisterDevice, useSensorSummary, useUpdateDevice } from "@/lib/sensors";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { growHub, newPendingDevice, pairingErrorCopy, secondsLeft } from "@/shared/lib/hubProvisioning";
 import { plantDisplayName } from "@/shared/lib/plantIdentity";
 import type { DeviceResponse, SensorReadingResponse } from "@/shared/types/api";
 
@@ -84,6 +86,7 @@ export default function SensorsPage() {
       <PageTitle>Sensores do ambiente</PageTitle>
       <PageSubtitle>{grow ? `${grow.name} · leituras automáticas enviadas pelo ESP32` : "Leituras automáticas enviadas pelo ESP32."}</PageSubtitle>
       {devices.isPending ? <Spinner /> : devices.isError ? <Button secondary label="Não foi possível carregar. Tentar novamente" onClick={() => void devices.refetch()} /> : <>
+        <SatelliteSearch growId={id} devices={all} />
         {!!pending.length && (
           <section className="flex flex-col gap-2 rounded-xl border border-warning bg-surface p-4" aria-label="Novos sensores detectados">
             <h2 className="font-label text-base text-display">NOVOS SENSORES DETECTADOS · {pending.length}</h2>
@@ -158,6 +161,91 @@ export default function SensorsPage() {
         onCancel={() => setRemoving(null)}
         onConfirm={() => removing && remove.mutate(removing.id, { onSuccess: () => setRemoving(null), onError: e => { setRemoving(null); setError(getErrorMessage(e, "Não foi possível remover agora.")); } })} />
     </div>
+  );
+}
+
+/**
+ * Figma 27 · S1/S2: "Adicionar satélite" abre a janela de pareamento do Hub por 60 s e espera o satélite aparecer
+ * entre os pendentes; sem Hub no ambiente, vira "Adicionar Hub". `?satelite=1` (vindo do "Hub conectado") já abre a busca.
+ */
+function SatelliteSearch({ growId, devices }: { growId: string; devices: DeviceResponse[] }) {
+  const open = useOpenHubPairing();
+  const [until, setUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [result, setResult] = useState<"found" | "timeout" | "error" | null>(null);
+  const [errorText, setErrorText] = useState("");
+  const [before, setBefore] = useState<ReadonlySet<string>>(() => new Set());
+  const searching = until !== null;
+  // Enquanto o Hub procura, a lista do ambiente atualiza a cada 3 s (mesma query da página).
+  const live = useGrowDevices(growId, searching ? 3000 : 15_000);
+  const list = live.data ?? devices;
+  const hub = growHub(list);
+  const remaining = until ? secondsLeft(until, now) : 0;
+  const addHub = routes.growAddHub(growId);
+
+  useEffect(() => {
+    if (!searching) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [searching]);
+
+  useEffect(() => {
+    if (!searching) return;
+    const found = newPendingDevice(list, before);
+    if (found || remaining === 0) {
+      // Resultado da busca que terminou agora; o intervalo acima para quando `until` volta a null.
+      queueMicrotask(() => { setUntil(null); setResult(found ? "found" : "timeout"); });
+    }
+  }, [searching, list, before, remaining]);
+
+  const start = useCallback(() => {
+    if (!hub) return;
+    setResult(null);
+    setBefore(new Set(list.filter(d => !d.is_paired).map(d => d.id)));
+    open.mutate({ hubId: hub.id }, {
+      onSuccess: r => {
+        const at = Date.parse(r.expires_at);
+        const local = Date.now() + r.ttl_s * 1000;
+        setNow(Date.now());
+        // Relógio do computador pode divergir do servidor: o ttl é a referência.
+        setUntil(Number.isFinite(at) && Math.abs(at - local) < 30_000 ? at : local);
+      },
+      onError: e => { setErrorText(pairingErrorCopy((e as { response?: { status?: number } })?.response?.status)); setResult("error"); },
+    });
+  }, [hub, list, open]);
+
+  // Vindo do H6 ("Adicionar satélite"): abre a busca uma vez, quando o Hub já está online.
+  const auto = useRef<boolean | null>(null);
+  useEffect(() => {
+    auto.current ??= new URLSearchParams(window.location.search).get("satelite") === "1";
+    if (auto.current && hub?.is_online) { auto.current = false; start(); }
+  }, [hub, start]);
+
+  if (!hub) return addHub ? (
+    <section className="flex flex-col gap-2" aria-label="Adicionar Hub">
+      <PanelButton label="Adicionar Hub" href={addHub} />
+      <p className="text-sm leading-5 text-text">O Hub é a central dos sensores. Depois dele, os satélites são adicionados por aqui.</p>
+    </section>
+  ) : null;
+
+  return (
+    <section className="flex flex-col gap-2" aria-label="Adicionar satélite" aria-live="polite">
+      {searching ? <>
+        <Marker tone="light">Hub procurando satélites</Marker>
+        <p className="text-sm leading-5 text-text">Ligue o satélite na tomada a até 10 metros do Hub. Quando o Hub achar, ele aparece aqui para você dar um nome e escolher a planta.</p>
+        <PanelLabel>Tempo restante · segundos</PanelLabel>
+        <span className="inline-flex gap-1 self-start rounded-[12px] border border-display p-1" role="timer" aria-label={`${remaining} segundos restantes`}>
+          {String(remaining).padStart(2, "0").split("").map((d, i) => <span key={i} aria-hidden className="flex h-[50px] w-11 items-center justify-center rounded-lg bg-display text-[30px] font-black text-surface">{d}</span>)}
+        </span>
+        <PanelButton kind="clear" label="Parar de procurar" onClick={() => setUntil(null)} />
+      </> : <>
+        <Button label={open.isPending ? "Abrindo busca…" : "Adicionar satélite"} onClick={start} disabled={!hub.is_online} loading={open.isPending} />
+        <p className="text-sm leading-5 text-text">{hub.is_online ? "O Hub procura satélites ligados perto dele por 60 segundos." : "Ligue o Hub para adicionar satélites."}</p>
+        {result === "found" && <><Marker tone="live">Satélite encontrado</Marker><p className="text-sm leading-5 text-text">Toque em &quot;Parear&quot; em Novos sensores detectados para dar um nome e escolher a planta.</p></>}
+        {result === "timeout" && <><Marker tone="out">Nenhum satélite em 60 s</Marker><p className="text-sm leading-5 text-text">Confira se o satélite está ligado e perto do Hub e procure de novo.</p></>}
+        {result === "error" && <><Marker tone="out">Não deu para falar com o Hub</Marker><p className="text-sm leading-5 text-text">{errorText}</p></>}
+      </>}
+    </section>
   );
 }
 

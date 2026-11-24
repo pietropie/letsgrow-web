@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { PAIRING_TTL_S } from "@/shared/lib/hubProvisioning";
 import type { DeviceResponse, SensorReadingResponse } from "@/shared/types/api";
 import { api } from "./api";
 
@@ -16,14 +17,20 @@ export interface SensorSummary {
   alerts: string[];
 }
 
+/** POST /iot/hubs/claim-codes (mobile types/api.ts HubClaimCodeResponse). */
+export interface HubClaimCodeResponse { code: string; expires_at: string }
+/** POST /iot/devices/{hub_id}/pairing (mobile types/api.ts HubPairingResponse). */
+export interface HubPairingResponse { hub_id: string; ttl_s: number; expires_at: string }
+
 const DEVICES = ["iot", "devices"] as const;
 
 /** Dispositivos do ambiente, inclusive satélites ainda não pareados; a cada 15 s, para pegar os que o hub detectar. */
-export function useGrowDevices(growId: string) {
+export function useGrowDevices(growId: string, every = 15_000) {
   return useQuery({
     queryKey: [...DEVICES, growId, false],
     queryFn: () => api<DeviceResponse[]>(`/iot/devices?grow_id=${growId}&paired_only=false`),
-    refetchInterval: 15_000, staleTime: 10_000,
+    // 3 s enquanto o Hub procura satélites ou acaba de ativar.
+    refetchInterval: every, staleTime: Math.min(every, 10_000),
   });
 }
 export function useRegisterDevice() {
@@ -59,4 +66,13 @@ export function useSensorSummary(deviceId: string | null) {
     queryKey: ["sensors", deviceId, "summary"], queryFn: () => api<SensorSummary>(`/sensors/${deviceId}/summary`),
     enabled: !!deviceId, refetchInterval: 60_000, staleTime: 30_000,
   });
+}
+
+/** Código de vínculo do Hub (8 caracteres, 15 min, uso único), enviado ao Hub pelo Bluetooth com o Wi-Fi. */
+export function useHubClaimCode() {
+  return useMutation({ mutationFn: (growId: string) => api<HubClaimCodeResponse>("/iot/hubs/claim-codes", { method: "POST", body: { grow_id: growId } }) });
+}
+/** Abre a janela de pareamento de satélites do Hub (pair_open pelo backend). */
+export function useOpenHubPairing() {
+  return useMutation({ mutationFn: ({ hubId, ttlS = PAIRING_TTL_S }: { hubId: string; ttlS?: number }) => api<HubPairingResponse>(`/iot/devices/${hubId}/pairing`, { method: "POST", body: { ttl_s: ttlS } }) });
 }
