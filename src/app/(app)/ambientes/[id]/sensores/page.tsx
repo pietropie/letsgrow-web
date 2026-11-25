@@ -2,153 +2,103 @@
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Marker, PanelButton, PanelLabel } from "@/components/panel";
+import { Lamp, Marker, PanelButton, PanelLabel } from "@/components/panel";
+import { scheduleFacts } from "@/components/relays/grow-relays";
+import { HubCard, SensorCard } from "@/components/sensors/cards";
 import { SidePanel } from "@/components/side-panel";
-import { BackLink, Button, ButtonLink, ChoiceField, ConfirmDialog, FormError, Notice, PageSubtitle, PageTitle, Spinner, TextField } from "@/components/ui";
-import { useGrow, usePlants } from "@/lib/hooks";
+import { BackLink, Button, ChoiceField, ConfirmDialog, FormError, Notice, Spinner, TextField } from "@/components/ui";
+import { useGrow, useMinuteOfDay, usePlants } from "@/lib/hooks";
+import { useHubRelays } from "@/lib/relay-client";
 import { routes } from "@/lib/routes";
-import { useDeleteDevice, useGrowDevices, useLatestReading, useOpenHubPairing, useSensorSummary, useUpdateDevice } from "@/lib/sensors";
+import { ago } from "@/lib/sensor-cards";
+import { useSensorScreen } from "@/lib/sensor-screen";
+import { useDeleteDevice, useGrowDevices, useNow, useOpenHubPairing, useUpdateDevice } from "@/lib/sensors";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { growHub, newPendingDevice, pairingErrorCopy, secondsLeft } from "@/shared/lib/hubProvisioning";
 import { plantDisplayName } from "@/shared/lib/plantIdentity";
-import type { DeviceResponse, SensorReadingResponse } from "@/shared/types/api";
+import type { DeviceResponse } from "@/shared/types/api";
 
-/** Faixas e casas decimais das leituras, as mesmas do mobile (grows/[id]/sensors.tsx). */
-const METRICS: { key: keyof SensorReadingResponse; label: string; unit: string; min: number; max: number; decimals: number }[] = [
-  { key: "temp_air", label: "Temperatura", unit: "°C", min: 20, max: 28, decimals: 1 },
-  { key: "humidity_air", label: "Umidade", unit: "%", min: 40, max: 70, decimals: 0 },
-  { key: "vpd_kpa", label: "VPD", unit: "kPa", min: 0.8, max: 1.6, decimals: 2 },
-  { key: "co2_ppm", label: "CO₂", unit: "ppm", min: 400, max: 1500, decimals: 0 },
-  { key: "ph_solution", label: "pH", unit: "", min: 5.8, max: 6.5, decimals: 1 },
-  { key: "soil_moisture_pct", label: "Solo", unit: "%", min: 30, max: 70, decimals: 0 },
-  { key: "temp_root", label: "Temp. raiz", unit: "°C", min: 18, max: 24, decimals: 1 },
-  { key: "lux", label: "Luminosidade", unit: "lux", min: 0, max: 65535, decimals: 0 },
-  { key: "ec_ms_cm", label: "EC", unit: "mS", min: 0.5, max: 3.0, decimals: 2 },
-];
-const MODULE: Record<DeviceResponse["module_type"], string> = { hub: "Hub central", satellite: "Satélite", standalone: "Standalone" };
-const TONE = { ok: "var(--color-primary)", warn: "var(--color-warning)", danger: "var(--color-error)" };
-
-function status(value: number, min: number, max: number): keyof typeof TONE {
-  const margin = (max - min) * 0.15;
-  if (value < min - margin || value > max + margin) return "danger";
-  return value < min || value > max ? "warn" : "ok";
-}
-function age(iso: string | null) {
-  if (!iso) return "sem sinal ainda";
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  return s < 60 ? `${Math.round(s)} s atrás` : s < 3600 ? `${Math.round(s / 60)} min atrás` : s < 86400 ? `${Math.round(s / 3600)} h atrás` : `${Math.round(s / 86400)} d atrás`;
-}
-
-function Metric({ m, value }: { m: (typeof METRICS)[number]; value: number | null | undefined }) {
-  if (value == null) return (
-    <div className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-3 opacity-50"><span className="text-xl font-bold text-text-faint">—</span><span className="text-sm text-text-muted">{m.label}</span></div>
-  );
-  const tone = TONE[status(value, m.min, m.max)];
-  const fill = Math.min(100, Math.max(0, ((value - m.min) / (m.max - m.min)) * 100));
-  return (
-    <div className="flex flex-col gap-1 rounded-xl border bg-surface p-3" style={{ borderColor: tone }}>
-      <span className="text-[22px] leading-7 font-bold" style={{ color: tone }}>{value.toFixed(m.decimals)}<span className="text-sm font-normal text-text-muted"> {m.unit}</span></span>
-      <span className="text-sm text-text-muted">{m.label}</span>
-      <span className="h-[3px] overflow-hidden rounded bg-border"><span className="block h-full" style={{ width: `${fill}%`, background: tone }} /></span>
-    </div>
-  );
-}
+const MODULE: Record<DeviceResponse["module_type"], string> = { hub: "Hub", satellite: "Satélite", standalone: "Sensor" };
 
 /**
- * Sensores do ambiente (mobile grows/[id]/sensors.tsx e PairingModal; sem frame no Figma): leituras automáticas enviadas pelo Hub,
- * médias de 24 h, satélites novos achados pelo Hub para parear com uma planta, e remover. Não há registro manual: Hub e
- * satélites entram só pelo "Adicionar Hub" e "Adicionar satélite". A tela não mostra MAC nem fala em ESP32.
+ * Sensores do ambiente (Figma 28 · W10p, SN1–SN3): o cartão do Hub e um cartão por medida, com a leitura, a faixa, as
+ * barras de 24 h e há quanto tempo chegou. Atualiza sozinho. Hub e satélites entram só por "Adicionar Hub" e "Adicionar
+ * satélite"; "Gerenciar sensores" pareia os novos e remove. Nenhum texto fala em placa, MAC ou Serial Monitor.
  */
 export default function SensorsPage() {
   const { id } = useParams<{ id: string }>();
   const grow = useGrow(id).data;
-  const devices = useGrowDevices(id);
   const plants = (usePlants({ is_active: true }).data ?? []).filter(p => p.grow_id === id);
   const plantIds = new Set(plants.map(p => p.id));
-  const all = (devices.data ?? []).filter(d => d.grow_id === id || (d.plant_id != null && plantIds.has(d.plant_id)));
+  const minute = useMinuteOfDay();
+  const light = scheduleFacts(grow, minute);
+  const plantName = (pid: string) => { const p = plants.find(x => x.id === pid); return p ? plantDisplayName(p) : null; };
+  const data = useSensorScreen(id, { growName: grow?.name ?? "Ambiente", plantName, lightOn: light.lit, inGrow: d => d.grow_id === id || (d.plant_id != null && plantIds.has(d.plant_id)) });
+  const all = data.all;
   const paired = all.filter(d => d.is_paired || d.module_type !== "satellite");
   const pending = all.filter(d => !d.is_paired && d.module_type === "satellite");
-  const [selected, setSelected] = useState<string | null>(null);
-  const active = paired.find(d => d.id === selected) ?? paired[0] ?? null;
-  const latest = useLatestReading(active?.id ?? null);
-  const summary = useSensorSummary(active?.id ?? null);
-  const remove = useDeleteDevice();
+  const screen = data.screen;
+  const hub = screen?.hub ?? null;
+  const relays = useHubRelays(hub?.id ?? null);
+  const [manage, setManage] = useState(false);
   const [pairing, setPairing] = useState<DeviceResponse | null>(null);
   const [removing, setRemoving] = useState<DeviceResponse | null>(null);
+  const remove = useDeleteDevice();
   const [error, setError] = useState("");
-  const reading = latest.data;
+  const now = useNow();
   const plantOptions = plants.map(p => ({ value: p.id, label: plantDisplayName(p) }));
 
+  const hubCard = hub && (
+    <HubCard hub={hub} now={now}>
+      <div className="flex flex-col gap-2.5">
+        <PanelButton kind="clear" label={pending.length ? `Gerenciar sensores · ${pending.length} novo${pending.length > 1 ? "s" : ""}` : "Gerenciar sensores"} onClick={() => setManage(true)} />
+        {relays.available && <PanelButton kind="clear" label="Relés do Hub" href={routes.growRelays(id)} />}
+      </div>
+    </HubCard>
+  );
+
   return (
-    <div className="flex max-w-[600px] flex-col gap-4">
-      <BackLink fallback={routes.growEquipment(id)} />
-      <PageTitle>Sensores do ambiente</PageTitle>
-      <PageSubtitle>{grow ? `${grow.name} · leituras automáticas enviadas pelo Hub` : "Leituras automáticas enviadas pelo Hub."}</PageSubtitle>
-      {devices.isPending ? <Spinner /> : devices.isError ? <Button secondary label="Não foi possível carregar. Tentar novamente" onClick={() => void devices.refetch()} /> : <>
-        <SatelliteSearch growId={id} devices={all} />
-        {!!pending.length && (
-          <section className="flex flex-col gap-2 rounded-xl border border-warning bg-surface p-4" aria-label="Novos sensores detectados">
-            <h2 className="font-label text-base text-display">NOVOS SENSORES DETECTADOS · {pending.length}</h2>
-            {pending.map(d => (
-              <div key={d.id} className="flex items-center gap-3">
-                <span className="flex flex-1 flex-col"><span className="text-base font-semibold text-text">{d.name || "Satélite novo"}</span><span className="text-xs text-text-muted">{d.last_seen_at ? `achado ${age(d.last_seen_at)}` : "achado agora"}</span></span>
-                <button type="button" onClick={() => setPairing(d)} className="min-h-10 rounded-lg bg-primary px-3 text-sm font-semibold text-white cursor-pointer">Parear</button>
-              </div>
-            ))}
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <BackLink fallback={routes.growPanel(id) ?? routes.grows()} />
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="font-label min-w-0 flex-1 text-[28px] leading-9 text-text-primary">Sensores</h1>
+          {!!screen?.cards.length && <Marker>Atualiza sozinho</Marker>}
+        </div>
+        <p className="text-base leading-6 text-text">{grow ? `Leituras automáticas do Hub e dos satélites de ${grow.name}.` : "Leituras automáticas do Hub e dos satélites deste ambiente."}</p>
+      </div>
+      {data.pending ? <Spinner /> : data.error || !screen ? <Button secondary label="Não foi possível carregar. Tentar novamente" onClick={data.refetch} /> : !hub && !screen.cards.length ? (
+        <div className="flex max-w-[600px] flex-col gap-4">
+          <section className="flex flex-col gap-3 rounded-2xl border border-stroke bg-surface p-3.5" aria-label="Sensores">
+            <div className="flex items-center gap-2.5"><Lamp state="none" /><h2 className="font-label flex-1 text-lg leading-6 text-display uppercase">Sensores</h2><Marker>Sem Hub</Marker></div>
+            <p className="text-[15px] leading-[21px] text-text">Com um Hub, a temperatura, a umidade, a luz, o solo e a solução chegam sozinhos, sem você anotar.</p>
+            <SatelliteSearch growId={id} devices={all} />
+            <p className="text-sm leading-5 text-text-secondary">Leva uns 3 minutos pelo Bluetooth. Enquanto isso, as leituras manuais continuam valendo.</p>
           </section>
-        )}
-        {!paired.length ? <>
-          <Notice title="Nenhum sensor conectado" body="Adicione o Hub para acompanhar temperatura, umidade, CO₂, pH e mais. Sensores são opcionais." />
-        </> : <>
-          {paired.length > 1 && (
-            <div role="radiogroup" aria-label="Dispositivo" className="flex flex-wrap gap-2">
-              {paired.map(d => (
-                <button key={d.id} type="button" role="radio" aria-checked={d.id === active?.id} onClick={() => setSelected(d.id)}
-                  className={`flex min-h-10 items-center gap-2 rounded-full border px-3 text-sm font-semibold cursor-pointer ${d.id === active?.id ? "border-primary bg-surface-bobby text-primary" : "border-border bg-surface text-text-muted"}`}>
-                  <span className={`h-2 w-2 rounded-full ${d.is_online ? "bg-primary" : "bg-text-faint"}`} />{d.name}
-                </button>
-              ))}
-            </div>
-          )}
-          {active && <p className="flex items-center gap-2 rounded-lg border border-border bg-surface p-2 text-sm">
-            <span className={`h-2 w-2 rounded-full ${active.is_online ? "bg-primary" : "bg-text-faint"}`} /><span className="flex-1 font-semibold">{active.name}</span>
-            <span className="text-xs text-text-muted">{MODULE[active.module_type]}</span><span className="text-xs text-text-faint">{age(reading?.recorded_at ?? active.last_seen_at)}</span>
-          </p>}
-          {!!summary.data?.alerts.length && <Notice white title="Atenção">{summary.data.alerts.map(a => <p key={a} className="text-sm leading-5">• {a}</p>)}</Notice>}
-          {latest.isPending ? <Spinner label="Buscando leituras…" />
-            : !reading ? <Notice white title="Aguardando leitura" body="O sensor ainda não enviou dados. Confira se o Hub está ligado e conectado ao Wi-Fi." />
-            : <>
-              <h2 className="font-label text-base text-display">LEITURA ATUAL</h2>
-              <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-                {METRICS.map(m => <Metric key={m.key} m={m} value={reading[m.key] as number | null} />)}
-                {reading.light_leak != null && <div className="flex flex-col gap-1 rounded-xl border bg-surface p-3" style={{ borderColor: reading.light_leak ? TONE.danger : TONE.ok }}>
-                  <span className="text-base font-bold" style={{ color: reading.light_leak ? TONE.danger : TONE.ok }}>{reading.light_leak ? "Detectado" : "Normal"}</span><span className="text-sm text-text-muted">Vazamento de luz</span>
-                </div>}
-              </div>
-            </>}
-          {summary.data && <>
-            <h2 className="font-label text-base text-display">MÉDIAS 24H</h2>
-            <div className="grid grid-cols-4 gap-2">
-              {([["Temp. ar", summary.data.avg_temp_air_24h, "°C", 1], ["Umidade", summary.data.avg_humidity_24h, "%", 0], ["VPD", summary.data.avg_vpd_24h, "kPa", 2], ["CO₂", summary.data.avg_co2_24h, "ppm", 0]] as const).map(([label, v, unit, dec]) => (
-                <div key={label} className="flex flex-col items-center rounded-xl border border-border bg-surface p-2 text-center">
-                  <span className="text-lg font-bold text-text">{v != null ? v.toFixed(dec) : "—"}</span><span className="text-xs text-text-muted">{unit}</span><span className="text-xs text-text-muted">{label}</span>
-                </div>
-              ))}
-            </div>
-          </>}
-          <h2 className="font-label text-base text-display">DISPOSITIVOS</h2>
-          {paired.map(d => (
-            <div key={d.id} className="flex items-center gap-3 rounded-xl border border-border bg-surface p-3">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${d.is_online ? "bg-primary" : "bg-text-faint"}`} />
-              <span className="flex flex-1 flex-col"><span className="text-base font-semibold text-text">{d.name}</span>
-                <span className="text-xs text-text-muted">{MODULE[d.module_type]} · {plants.find(p => p.id === d.plant_id) ? plantDisplayName(plants.find(p => p.id === d.plant_id)!) : "sem planta"} · {d.is_online ? "online" : `offline, ${age(d.last_seen_at)}`}</span></span>
-              <button type="button" onClick={() => { setError(""); setRemoving(d); }} className="min-h-10 rounded-lg px-2 text-sm font-semibold text-error hover:bg-bg cursor-pointer">Remover</button>
-            </div>
-          ))}
+          {!!pending.length && <PendingList pending={pending} onPair={setPairing} />}
+        </div>
+      ) : (
+        <div className="gap-5 md:columns-2 xl:columns-3 [&>*]:mb-4 [&>*]:break-inside-avoid">
+          {hubCard}
+          {screen.cards.map(c => <SensorCard key={c.id} card={c} now={now} lightOn={screen.lightOn ?? light.lit} lightWindow={light.window} />)}
+          {!!pending.length && <PendingList pending={pending} onPair={setPairing} />}
+          <div><SatelliteSearch growId={id} devices={all} /></div>
           <FormError message={error} />
-        </>}
-      </>}
-      <ButtonLink secondary label="Voltar aos equipamentos" href={routes.growEquipment(id)} />
+        </div>
+      )}
+
+      <SidePanel open={manage} onClose={() => setManage(false)} title="Gerenciar sensores" subtitle={grow?.name}>
+        {!!pending.length && <PendingList pending={pending} onPair={d => { setManage(false); setPairing(d); }} />}
+        <PanelLabel>Conectados · {paired.length}</PanelLabel>
+        {paired.map(d => (
+          <div key={d.id} className="flex items-center gap-3 rounded-xl border border-stroke bg-surface p-3">
+            <Lamp state={d.is_online ? "ok" : "none"} />
+            <span className="flex min-w-0 flex-1 flex-col"><span className="truncate text-base font-semibold text-text">{d.name}</span>
+              <span className="text-xs text-text-secondary">{[MODULE[d.module_type], d.plant_id ? plantName(d.plant_id) : null, d.is_online ? "online" : `sem sinal${d.last_seen_at ? ` ${ago(d.last_seen_at, now)}` : ""}`].filter(Boolean).join(" · ")}</span></span>
+            <button type="button" onClick={() => { setError(""); setManage(false); setRemoving(d); }} className="min-h-10 rounded-lg px-2 text-sm font-semibold text-state-error hover:bg-bg cursor-pointer">Remover</button>
+          </div>
+        ))}
+      </SidePanel>
 
       {/* Montado só ao abrir: a planta sugerida é a primeira já carregada. */}
       {pairing && <PairPanel key={pairing.id} device={pairing} plants={plantOptions} onClose={() => setPairing(null)} />}
@@ -157,6 +107,21 @@ export default function SensorsPage() {
         onCancel={() => setRemoving(null)}
         onConfirm={() => removing && remove.mutate(removing.id, { onSuccess: () => setRemoving(null), onError: e => { setRemoving(null); setError(getErrorMessage(e, "Não foi possível remover agora.")); } })} />
     </div>
+  );
+}
+
+/** Satélites que o Hub achou e ainda esperam nome e planta. */
+function PendingList({ pending, onPair }: { pending: DeviceResponse[]; onPair: (d: DeviceResponse) => void }) {
+  return (
+    <section className="flex flex-col gap-2 rounded-2xl border border-stroke bg-surface p-3.5" aria-label="Novos sensores detectados">
+      <div className="flex items-center gap-2.5"><h2 className="font-label flex-1 text-lg leading-6 text-display uppercase">Novos sensores</h2><Marker tone="light">{pending.length} achado{pending.length > 1 ? "s" : ""}</Marker></div>
+      {pending.map(d => (
+        <div key={d.id} className="flex items-center gap-3">
+          <span className="flex flex-1 flex-col"><span className="text-base font-semibold text-text">{d.name || "Satélite novo"}</span><span className="text-xs text-text-secondary">{d.last_seen_at ? `achado ${ago(d.last_seen_at)}` : "achado agora"}</span></span>
+          <button type="button" onClick={() => onPair(d)} className="font-label min-h-10 rounded-lg bg-primary px-3 text-sm text-surface uppercase cursor-pointer hover:bg-primary-dark">Parear</button>
+        </div>
+      ))}
+    </section>
   );
 }
 

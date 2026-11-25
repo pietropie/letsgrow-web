@@ -8,13 +8,18 @@ import { useState, type ReactNode } from "react";
 import { SegmentedDisplay } from "@/components/home/blocks";
 import { GrowPicker } from "@/components/home/place-flow";
 import { ExhaustDimmer, PanelTag, PhotoperiodDial, PpfdGauge, type PanelTone } from "@/components/grows/instruments";
+import { RelayControl } from "@/components/relays/relay-ui";
+import { SUBJECT, scheduleFacts, useGrowRelays } from "@/components/relays/grow-relays";
+import { SensorsBlock } from "@/components/sensors/panel-block";
 import { GrowShopBlock } from "@/components/shop";
 import { CornerLink, Lamp, Marker, PanelButton, PanelCard, PanelLabel, PanelTitle, type LampState } from "@/components/panel";
 import { BackLink, Button, Spinner } from "@/components/ui";
 import { backendNextAction, nextAction, nextMarker, readingMarker, type SummaryV3 } from "@/lib/home-v3";
 import { api } from "@/lib/api";
 import { useBobAlerts, useGrow, useGrowPlants, useGrows, useMinuteOfDay, usePlantSummaries, useRememberedGrow } from "@/lib/hooks";
+import { MODE_LINE, shownMode, type EquipKind } from "@/lib/relays";
 import { routes } from "@/lib/routes";
+import { useSensorScreen } from "@/lib/sensor-screen";
 import { dayMonthTime } from "@/shared/lib/dates";
 import { hasExhaust } from "@/shared/lib/exhaustDimmer";
 import { carbonFilterLabel, exhaustDescription, fans, growTypeLabel, lightDescription, locationLabel } from "@/shared/lib/growEquipment";
@@ -56,6 +61,13 @@ export default function GrowPanelPage() {
   const [, select] = useRememberedGrow();
   const [picker, setPicker] = useState(false);
   const minute = useMinuteOfDay();
+  const relayKit = useGrowRelays(growQuery.data);
+  const growPlantIds = new Set((plantsQuery.data ?? []).map(p => p.id));
+  const sensorData = useSensorScreen(id, {
+    growName: growQuery.data?.name ?? "Ambiente", lightOn: scheduleFacts(growQuery.data, minute).lit,
+    plantName: pid => { const p = (plantsQuery.data ?? []).find(x => x.id === pid); return p ? plantDisplayName(p) : null; },
+    inGrow: d => d.grow_id === id || (d.plant_id != null && growPlantIds.has(d.plant_id)),
+  });
 
   const grow = growQuery.data;
   const plants = plantsQuery.data ?? [];
@@ -74,6 +86,22 @@ export default function GrowPanelPage() {
   }
 
   const form = (kind: EquipmentKind) => routes.growEquipmentForm(grow.id, kind);
+  // Sensores (Figma 28 · SN4/W11p): com Hub, o bloco "Sensores" toma o lugar do cartão "Ambiente".
+  const sensorScreen = sensorData.screen;
+  const withHub = !!sensorScreen?.hub;
+  // Relé de cada equipamento (SN7b): a linha entra no topo do bloco, só quando a API de relés responde.
+  const lightFacts = scheduleFacts(grow, minute);
+  const relayLine = (kind: EquipKind, key: string, plural = false) => {
+    const r = relayKit.relays.available && relayKit.hub ? relayKit.relayFor(kind, key) : null;
+    if (!r || !relayKit.hub) return null;
+    return (
+      <div className="flex items-start gap-3">
+        <RelayControl hubId={relayKit.hub.id} relay={r} online={relayKit.online} plural={plural} subject={SUBJECT[kind]}
+          nextOn={kind === "light" ? lightFacts.nextOn : null} />
+        <Link href={routes.growRelays(grow.id) ?? "#"} className="font-label ml-auto min-h-8 text-right text-[13px] leading-4 text-display uppercase hover:underline">{MODE_LINE[shownMode(r)]} ›</Link>
+      </div>
+    );
+  };
   const temperature = environmentMeasurement(grow.env, "temperature");
   const light = environmentMeasurement(grow.env, "light");
   const withExhaust = hasExhaust(grow.exhaust_type);
@@ -179,6 +207,7 @@ export default function GrowPanelPage() {
   const lightCard = (
     <PanelCard label="Iluminação">
       <CardTitle icon={<img src="/figma/light.svg" alt="" />} title="ILUMINAÇÃO" edit={{ label: "Editar iluminação", href: form("light") }} />
+      {relayLine("light", "light")}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm leading-[17px] text-display">{lightDescription(grow) ?? "Luminária não informada"}</span>
         {schedule.light != null && (
@@ -209,6 +238,8 @@ export default function GrowPanelPage() {
       <ul className="-my-1 flex flex-col">
         {[
           { title: "Histórico do ambiente", body: "Leituras, luz e equipamentos ao longo do tempo.", href: routes.growHistory(grow.id) },
+          // Com Hub, o cartão "Ambiente" sai do painel; a leitura manual continua por aqui.
+          ...(withHub && !archived ? [{ title: "Registrar leitura", body: "As leituras manuais continuam valendo.", href: routes.growReading(grow.id) ?? "#" }] : []),
           ...(!archived ? [{ title: "Arquivar ambiente", body: "O histórico continua disponível.", href: routes.growEdit(grow.id) }] : []),
         ].map(r => (
           <li key={r.title} className="border-b border-stroke last:border-b-0">
@@ -226,8 +257,9 @@ export default function GrowPanelPage() {
       <div className="flex flex-wrap items-start gap-2.5">
         <div className="flex min-w-[180px] flex-1 flex-col gap-2.5">
           <CardTitle icon={<img src="/figma/exhaust.svg" alt="" />} title="EXAUSTÃO" edit={{ label: "Editar exaustão", href: form("exhaust") }} />
+          {relayLine("exhaust", "exhaust")}
           <p className="text-sm leading-[17px] text-display">{exhaustDescription(grow) ?? "Exaustão não informada"}</p>
-          {withExhaust && <p className="text-sm leading-[17px] text-display">Registra o ajuste do seu controlador. O app não liga nem regula o exaustor.</p>}
+          {withExhaust && !relayKit.relayFor("exhaust", "exhaust") && <p className="text-sm leading-[17px] text-display">Registra o ajuste do seu controlador. O app não liga nem regula o exaustor.</p>}
           <div className="flex flex-col gap-1">
             <Field label="LOCAL:" value={locationLabel(grow.exhaust_location)} />
             <Field label="FILTRO DE AR:" value={carbonFilterLabel(grow.carbon_filter)} />
@@ -242,6 +274,7 @@ export default function GrowPanelPage() {
       {(fanList.length ? fanList : [{ title: "Ventilação não informada", location: "NÃO INFORMADO" }]).map((fan, i) => (
         <div key={i} className={`flex flex-1 flex-col gap-1.5 ${i > 0 ? "border-l border-stroke pl-2" : "pr-2"}`}>
           <CardTitle icon={<img src="/figma/fan.svg" alt="" />} title="VENTILAÇÃO" edit={{ label: "Editar ventilação", href: form("fans") }} />
+          {grow.fans?.[i] && relayLine("fan", `fan:${(grow.fans[i] as { id?: string }).id ?? i}`)}
           <p className="text-sm leading-[17px] text-display">{fan.title}</p>
           <Field label="LOCAL:" value={fan.location} />
         </div>
@@ -263,7 +296,11 @@ export default function GrowPanelPage() {
         <div className="flex flex-wrap gap-1.5">{archived && <Marker tone="out">Arquivado</Marker>}{facts.map(f => <Marker key={f}>{f}</Marker>)}</div>
       </div>
       <div className="flex flex-col gap-[14px] lg:grid lg:grid-cols-3 lg:items-start lg:gap-5">
-        <div className="flex flex-col gap-[14px] lg:gap-5">{attentionCard}{envCard}{plantsCard}</div>
+        <div className="flex flex-col gap-[14px] lg:gap-5">
+          {attentionCard}
+          {withHub ? <SensorsBlock grow={grow} screen={sensorScreen!} /> : <>{envCard}{sensorScreen && <SensorsBlock grow={grow} screen={sensorScreen} />}</>}
+          {plantsCard}
+        </div>
         <div className="flex flex-col gap-[14px] lg:gap-5">{lightCard}{linksCard}</div>
         <div className="flex flex-col gap-[14px] lg:gap-5">
           {exhaustCard}{fanCard}

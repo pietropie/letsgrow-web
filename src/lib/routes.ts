@@ -16,6 +16,8 @@ export const routes = {
   growSensors: (growId: string): string | null => `/ambientes/${growId}/sensores`,
   /** Adicionar Hub por Bluetooth (Figma 27, H1–H7). */
   growAddHub: (growId: string): string | null => `/ambientes/${growId}/sensores/hub`,
+  /** Relés do Hub (Figma 28 · W12p). */
+  growRelays: (growId: string): string | null => `/ambientes/${growId}/sensores/reles`,
   plants: () => "/plantas",
   plantsCalendar: (): string | null => "/plantas?modo=calendario",
   archivedPlants: () => "/plantas/arquivadas",

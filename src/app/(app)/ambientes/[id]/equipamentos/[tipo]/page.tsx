@@ -10,6 +10,17 @@ import { KIND_TITLE, OPTIONS, draftFromGrow, isEquipmentKind, payloadFromDraft, 
 import { CLEAR_SCHEDULE, canClearSchedule, formatClock, parseClock, scheduleCleared, scheduleFromGrow } from "@/shared/lib/lightSchedule";
 import { sanitizeNumericText } from "@/shared/lib/numericInput";
 
+type FanKeep = { id?: string; qty?: number };
+/** id e qty de cada ventilador, na ordem da lista do servidor. */
+function keepFromFans(fans: unknown): FanKeep[] {
+  return Array.isArray(fans) ? fans.map(f => { const x = f as { id?: unknown; qty?: unknown }; return { ...(typeof x.id === "string" && { id: x.id }), ...(typeof x.qty === "number" && { qty: x.qty }) }; }) : [];
+}
+/** Devolve o id (e a qty) de cada ventilador no corpo do PATCH; ventilador novo vai sem id. */
+function withFanKeep(body: object, keep: FanKeep[]) {
+  const b = body as { fans?: object[] };
+  if (Array.isArray(b.fans)) b.fans = b.fans.map((f, i) => ({ ...f, ...keep[i] }));
+}
+
 const SAVE_ERROR = "Não foi possível salvar. Seus dados continuam como antes, tente novamente.";
 const CLEAR_ERROR = "Não foi possível limpar. A programação continua cadastrada.";
 
@@ -21,6 +32,9 @@ export default function EquipmentFormPage() {
   const grow = useGrow(id);
   const update = useUpdateGrow(id);
   const [draft, setDraft] = useState<EquipmentDraft | null>(null);
+  // Relés (contrato API-SENSORES-RELES §4): cada ventilador tem um id estável do servidor (e "qty"); o rascunho do
+  // mobile não guarda esses campos, então eles andam aqui, na mesma ordem da lista, e voltam no PATCH.
+  const [fanKeep, setFanKeep] = useState<FanKeep[]>([]);
   const [error, setError] = useState("");
   const [cleared, setCleared] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -29,7 +43,7 @@ export default function EquipmentFormPage() {
   const g = grow.data;
   // Preenchido uma vez por ambiente e tipo: a releitura depois de salvar não sobrescreve o rascunho.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (g) setDraft(draftFromGrow(kind, g)); }, [g?.id, kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (g) { setDraft(draftFromGrow(kind, g)); setFanKeep(keepFromFans(g.fans)); } }, [g?.id, kind]); // eslint-disable-line react-hooks/exhaustive-deps
   const back = () => router.push(routes.growEquipment(id));
 
   const set = (key: string) => (value: string) => setDraft(d => d && { ...d, values: { ...d.values, [key]: value } });
@@ -40,6 +54,7 @@ export default function EquipmentFormPage() {
     if (!draft || update.isPending) return;
     const result = payloadFromDraft(kind, draft);
     if ("error" in result) { setError(result.error); return; }
+    if (kind === "fans") withFanKeep(result.body, fanKeep);
     setError("");
     try {
       const saved = await update.mutateAsync(result.body);
@@ -95,10 +110,10 @@ export default function EquipmentFormPage() {
         <ChoiceField label="Local" hint="Copa ou base." value={fan.location} options={OPTIONS.location} onChange={location => setFan(i, { location })} />
         <TextField label="Potência" hint="Unidade: W · opcional." value={fan.watts} inputMode="numeric" placeholder="Não informado" onChange={e => setFan(i, { watts: sanitizeNumericText(e.target.value, "integer") })} />
         {/* Sem confirmação: remover só vale quando o formulário é salvo. */}
-        <button type="button" onClick={() => setDraft(d => d && { ...d, fans: d.fans.filter((_, j) => j !== i) })} className="min-h-11 self-start text-base font-semibold text-error cursor-pointer">Remover ventilador {i + 1}</button>
+        <button type="button" onClick={() => { setDraft(d => d && { ...d, fans: d.fans.filter((_, j) => j !== i) }); setFanKeep(k => k.filter((_, j) => j !== i)); }} className="min-h-11 self-start text-base font-semibold text-error cursor-pointer">Remover ventilador {i + 1}</button>
       </fieldset>
     ))}
-    <Button secondary label="Adicionar ventilador" onClick={() => setDraft(d => d && { ...d, fans: [...d.fans, { location: "", watts: "" }] })} />
+    <Button secondary label="Adicionar ventilador" onClick={() => { setDraft(d => d && { ...d, fans: [...d.fans, { location: "", watts: "" }] }); setFanKeep(k => [...k, {}]); }} />
   </> : kind === "climate" ? <>
     {choice("air_conditioning", "Ar-condicionado", "Sim, Não ou Não sei.", OPTIONS.yesNo)}
     {choice("dehumidifier", "Desumidificador", "Sim, Não ou Não sei.", OPTIONS.yesNo)}
