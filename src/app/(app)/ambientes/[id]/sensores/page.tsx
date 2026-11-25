@@ -7,7 +7,7 @@ import { SidePanel } from "@/components/side-panel";
 import { BackLink, Button, ButtonLink, ChoiceField, ConfirmDialog, FormError, Notice, PageSubtitle, PageTitle, Spinner, TextField } from "@/components/ui";
 import { useGrow, usePlants } from "@/lib/hooks";
 import { routes } from "@/lib/routes";
-import { useDeleteDevice, useGrowDevices, useLatestReading, useOpenHubPairing, useRegisterDevice, useSensorSummary, useUpdateDevice } from "@/lib/sensors";
+import { useDeleteDevice, useGrowDevices, useLatestReading, useOpenHubPairing, useSensorSummary, useUpdateDevice } from "@/lib/sensors";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { growHub, newPendingDevice, pairingErrorCopy, secondsLeft } from "@/shared/lib/hubProvisioning";
 import { plantDisplayName } from "@/shared/lib/plantIdentity";
@@ -55,8 +55,9 @@ function Metric({ m, value }: { m: (typeof METRICS)[number]; value: number | nul
 }
 
 /**
- * Sensores do ambiente (mobile grows/[id]/sensors.tsx e PairingModal; sem frame no Figma): leituras automáticas do ESP32,
- * médias de 24 h, satélites novos detectados pelo hub para parear com uma planta, registro manual de um ESP32 e remover.
+ * Sensores do ambiente (mobile grows/[id]/sensors.tsx e PairingModal; sem frame no Figma): leituras automáticas enviadas pelo Hub,
+ * médias de 24 h, satélites novos achados pelo Hub para parear com uma planta, e remover. Não há registro manual: Hub e
+ * satélites entram só pelo "Adicionar Hub" e "Adicionar satélite". A tela não mostra MAC nem fala em ESP32.
  */
 export default function SensorsPage() {
   const { id } = useParams<{ id: string }>();
@@ -72,7 +73,6 @@ export default function SensorsPage() {
   const latest = useLatestReading(active?.id ?? null);
   const summary = useSensorSummary(active?.id ?? null);
   const remove = useDeleteDevice();
-  const [register, setRegister] = useState(false);
   const [pairing, setPairing] = useState<DeviceResponse | null>(null);
   const [removing, setRemoving] = useState<DeviceResponse | null>(null);
   const [error, setError] = useState("");
@@ -83,7 +83,7 @@ export default function SensorsPage() {
     <div className="flex max-w-[600px] flex-col gap-4">
       <BackLink fallback={routes.growEquipment(id)} />
       <PageTitle>Sensores do ambiente</PageTitle>
-      <PageSubtitle>{grow ? `${grow.name} · leituras automáticas enviadas pelo ESP32` : "Leituras automáticas enviadas pelo ESP32."}</PageSubtitle>
+      <PageSubtitle>{grow ? `${grow.name} · leituras automáticas enviadas pelo Hub` : "Leituras automáticas enviadas pelo Hub."}</PageSubtitle>
       {devices.isPending ? <Spinner /> : devices.isError ? <Button secondary label="Não foi possível carregar. Tentar novamente" onClick={() => void devices.refetch()} /> : <>
         <SatelliteSearch growId={id} devices={all} />
         {!!pending.length && (
@@ -98,8 +98,7 @@ export default function SensorsPage() {
           </section>
         )}
         {!paired.length ? <>
-          <Notice title="Nenhum sensor conectado" body="Registre seu ESP32 para acompanhar temperatura, umidade, CO₂, pH e mais. Sensores são opcionais." />
-          <Button label="Registrar ESP32" onClick={() => setRegister(true)} />
+          <Notice title="Nenhum sensor conectado" body="Adicione o Hub para acompanhar temperatura, umidade, CO₂, pH e mais. Sensores são opcionais." />
         </> : <>
           {paired.length > 1 && (
             <div role="radiogroup" aria-label="Dispositivo" className="flex flex-wrap gap-2">
@@ -117,7 +116,7 @@ export default function SensorsPage() {
           </p>}
           {!!summary.data?.alerts.length && <Notice white title="Atenção">{summary.data.alerts.map(a => <p key={a} className="text-sm leading-5">• {a}</p>)}</Notice>}
           {latest.isPending ? <Spinner label="Buscando leituras…" />
-            : !reading ? <Notice white title="Aguardando leitura" body="O ESP32 ainda não enviou dados. Verifique se está ligado e conectado ao Wi-Fi." />
+            : !reading ? <Notice white title="Aguardando leitura" body="O sensor ainda não enviou dados. Confira se o Hub está ligado e conectado ao Wi-Fi." />
             : <>
               <h2 className="font-label text-base text-display">LEITURA ATUAL</h2>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
@@ -147,16 +146,14 @@ export default function SensorsPage() {
             </div>
           ))}
           <FormError message={error} />
-          <Button secondary label="Registrar outro ESP32" onClick={() => setRegister(true)} />
         </>}
       </>}
       <ButtonLink secondary label="Voltar aos equipamentos" href={routes.growEquipment(id)} />
 
       {/* Montado só ao abrir: a planta sugerida é a primeira já carregada. */}
-      {register && <RegisterPanel onClose={() => setRegister(false)} growId={id} plants={plantOptions} />}
       {pairing && <PairPanel key={pairing.id} device={pairing} plants={plantOptions} onClose={() => setPairing(null)} />}
       <ConfirmDialog open={!!removing} title="Remover este sensor?" confirm="Remover" destructive busy={remove.isPending}
-        message={`"${removing?.name ?? ""}" deixa de aparecer neste ambiente. Para voltar, registre o ESP32 de novo.`}
+        message={`"${removing?.name ?? ""}" deixa de aparecer neste ambiente. Para voltar, adicione ${removing?.module_type === "hub" ? "o Hub" : "o sensor"} de novo.`}
         onCancel={() => setRemoving(null)}
         onConfirm={() => removing && remove.mutate(removing.id, { onSuccess: () => setRemoving(null), onError: e => { setRemoving(null); setError(getErrorMessage(e, "Não foi possível remover agora.")); } })} />
     </div>
@@ -245,38 +242,6 @@ function SatelliteSearch({ growId, devices }: { growId: string; devices: DeviceR
         {result === "error" && <><Marker tone="out">Não deu para falar com o Hub</Marker><p className="text-sm leading-5 text-text">{errorText}</p></>}
       </>}
     </section>
-  );
-}
-
-const NO_PLANT = "";
-
-function RegisterPanel({ onClose, growId, plants }: { onClose: () => void; growId: string; plants: { value: string; label: string }[] }) {
-  const save = useRegisterDevice();
-  const [name, setName] = useState("");
-  const [esp, setEsp] = useState("");
-  const [plant, setPlant] = useState(plants[0]?.value ?? NO_PLANT);
-  const [error, setError] = useState("");
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    const clean = esp.replace(/[^A-Fa-f0-9]/g, "").toUpperCase();
-    if (!name.trim()) return setError("Dê um nome ao dispositivo.");
-    if (clean.length !== 12) return setError("O MAC tem 12 caracteres (0–9 e A–F), por exemplo AABBCCDDEEFF.");
-    setError("");
-    save.mutate({ grow_id: growId, plant_id: plant || undefined, name: name.trim(), esp32_mac: clean }, {
-      onSuccess: () => { setName(""); setEsp(""); onClose(); },
-      onError: err => setError(getErrorMessage(err, "Não foi possível registrar.")),
-    });
-  }
-  return (
-    <SidePanel open onClose={onClose} title="Registrar ESP32" subtitle="O MAC está impresso no ESP32 ou aparece no Serial Monitor ao ligar o dispositivo.">
-      <form onSubmit={submit} className="flex flex-col gap-4">
-        <TextField label="Nome do dispositivo" placeholder="Sensor do ambiente" value={name} onChange={e => setName(e.target.value)} data-autofocus />
-        <TextField label="MAC do ESP32" placeholder="AABBCCDDEEFF" value={esp} onChange={e => setEsp(e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
-        {!!plants.length && <ChoiceField label="Vincular à planta" hint="Opcional." value={plant} onChange={setPlant} options={[...plants, { value: NO_PLANT, label: "Sem planta" }]} />}
-        <FormError message={error} />
-        <Button type="submit" label={save.isPending ? "Registrando…" : "Registrar"} loading={save.isPending} />
-      </form>
-    </SidePanel>
   );
 }
 

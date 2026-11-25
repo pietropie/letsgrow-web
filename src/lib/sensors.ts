@@ -33,13 +33,6 @@ export function useGrowDevices(growId: string, every = 15_000) {
     refetchInterval: every, staleTime: Math.min(every, 10_000),
   });
 }
-export function useRegisterDevice() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { grow_id: string; plant_id?: string; name: string; esp32_mac: string }) => api<DeviceResponse>("/iot/devices", { method: "POST", body }),
-    onSuccess: () => client.invalidateQueries({ queryKey: DEVICES }),
-  });
-}
 /** Parear um satélite (plant_id e nome) ou renomear um já pareado. */
 export function useUpdateDevice() {
   const client = useQueryClient();
