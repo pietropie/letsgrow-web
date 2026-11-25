@@ -9,7 +9,7 @@ import { useHubProvisioning, type ScanProblem } from "@/lib/hub-provisioning";
 import { routes } from "@/lib/routes";
 import { useGrowDevices } from "@/lib/sensors";
 import {
-  ERROR_ACTION_LABEL, HUB_CONFIG_WINDOW_MIN, ONLINE_SLOW_MS, PROGRESS_STEPS, errorCopy, findHub, formatMac, signalBars,
+  ERROR_ACTION_LABEL, HUB_CONFIG_WINDOW_MIN, ONLINE_SLOW_MS, PROGRESS_STEPS, errorCopy, findHub, signalBars,
   wifiFormError,
 } from "@/shared/lib/hubProvisioning";
 
@@ -206,7 +206,7 @@ function Done({ flow, growId, onSensors, onSatellite }: { flow: Flow; growId: st
     <Marker tone={online ? "live" : "plain"}>{online ? "Pronto" : "Ativado"}</Marker>
     <EntryTitle title="Hub conectado" subtitle="O Hub já manda dados para o Let's Grow. Agora você pode adicionar satélites e ligar os relés." />
     <Box title="HUB">
-      <Row title={device?.name ?? `Hub ${flow.hub?.suffix ?? ""}`} sub={flow.info ? formatMac(flow.info.mac) : undefined}
+      <Row title={device?.name ?? `Hub ${flow.hub?.suffix ?? ""}`} sub="A base · fica ligada no Wi-Fi"
         right={<Marker tone={tone}>{online ? "Online" : slow ? "Ainda não apareceu" : "Esperando"}</Marker>} />
       {details && <PanelLabel>{details}</PanelLabel>}
     </Box>

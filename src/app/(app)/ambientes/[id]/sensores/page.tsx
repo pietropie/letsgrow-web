@@ -38,7 +38,6 @@ function age(iso: string | null) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   return s < 60 ? `${Math.round(s)} s atrás` : s < 3600 ? `${Math.round(s / 60)} min atrás` : s < 86400 ? `${Math.round(s / 3600)} h atrás` : `${Math.round(s / 86400)} d atrás`;
 }
-const mac = (m: string) => m.replace(/[^A-Fa-f0-9]/g, "").toUpperCase().match(/.{1,2}/g)?.join(":") ?? m;
 
 function Metric({ m, value }: { m: (typeof METRICS)[number]; value: number | null | undefined }) {
   if (value == null) return (
@@ -92,7 +91,7 @@ export default function SensorsPage() {
             <h2 className="font-label text-base text-display">NOVOS SENSORES DETECTADOS · {pending.length}</h2>
             {pending.map(d => (
               <div key={d.id} className="flex items-center gap-3">
-                <span className="flex flex-1 flex-col"><span className="text-base font-semibold text-text">{d.name || "Satélite"}</span><span className="font-mono text-xs text-text-muted">{mac(d.esp32_mac)} · {age(d.last_seen_at)}</span></span>
+                <span className="flex flex-1 flex-col"><span className="text-base font-semibold text-text">{d.name || "Satélite novo"}</span><span className="text-xs text-text-muted">{d.last_seen_at ? `achado ${age(d.last_seen_at)}` : "achado agora"}</span></span>
                 <button type="button" onClick={() => setPairing(d)} className="min-h-10 rounded-lg bg-primary px-3 text-sm font-semibold text-white cursor-pointer">Parear</button>
               </div>
             ))}
@@ -114,7 +113,7 @@ export default function SensorsPage() {
           )}
           {active && <p className="flex items-center gap-2 rounded-lg border border-border bg-surface p-2 text-sm">
             <span className={`h-2 w-2 rounded-full ${active.is_online ? "bg-primary" : "bg-text-faint"}`} /><span className="flex-1 font-semibold">{active.name}</span>
-            <span className="font-mono text-xs text-text-muted">{mac(active.esp32_mac)}</span><span className="text-xs text-text-faint">{age(reading?.recorded_at ?? active.last_seen_at)}</span>
+            <span className="text-xs text-text-muted">{MODULE[active.module_type]}</span><span className="text-xs text-text-faint">{age(reading?.recorded_at ?? active.last_seen_at)}</span>
           </p>}
           {!!summary.data?.alerts.length && <Notice white title="Atenção">{summary.data.alerts.map(a => <p key={a} className="text-sm leading-5">• {a}</p>)}</Notice>}
           {latest.isPending ? <Spinner label="Buscando leituras…" />
@@ -293,7 +292,7 @@ function PairPanel({ device, plants, onClose }: { device: DeviceResponse; plants
     save.mutate({ id: device.id, body: { name: name.trim(), plant_id: plant } }, { onSuccess: onClose, onError: err => setError(getErrorMessage(err, "Não foi possível parear.")) });
   }
   return (
-    <SidePanel open onClose={onClose} title="Parear sensor" subtitle={`Satélite ${mac(device.esp32_mac)} detectado pelo hub.`}>
+    <SidePanel open onClose={onClose} title="Parear sensor" subtitle={`${device.name || "Satélite novo"} achado pelo Hub.`}>
       <form onSubmit={submit} className="flex flex-col gap-4">
         <TextField label="Nome do sensor" placeholder="Sensor do vaso 1" value={name} onChange={e => setName(e.target.value)} data-autofocus />
         {plants.length ? <ChoiceField label="Planta" value={plant} onChange={setPlant} options={plants} />
